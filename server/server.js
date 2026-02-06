@@ -9,7 +9,6 @@ const session = require("express-session");
 const jwt = require("jsonwebtoken");
 const path = require('path');
 const cookieParser = require('cookie-parser');
-
 const authRoutes = require('./routes/authRoutes');
 const conversationRoutes = require('./routes/conversationRoutes');
 const app = express();
@@ -18,8 +17,6 @@ const io = new Server(server, { cors: { origin: "*" } });
 const User = require('./models/User');
 const Message = require('./models/Message');
 const Conversation = require('./models/Conversation');
-
-
 
 // Middleware to parse JSON and URL-encoded bodies
 app.use(express.json());
@@ -192,11 +189,11 @@ function isAuthenticated(req, res, next) {
 
 // Dashboard route with authentication - Updated path
 app.get('/dashboard', isAuthenticated, (req, res) => {
-    res.sendFile(path.join(__dirname, '../client_old/public/dashboard.html'));
+    res.sendFile(path.join(__dirname, './Client/dashboard'));
 });
 
 app.get('/profile', isAuthenticated, (req, res) => {
-    res.sendFile(path.join(__dirname, '../client_old/public/profile.html'));
+    res.sendFile(path.join(__dirname, './Client/profile'));
 });
 
 // NEW: Get messages for specific room/section
