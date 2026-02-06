@@ -1,34 +1,71 @@
 import { useState, useEffect, useRef } from 'react';
+import io, { Socket } from 'socket.io-client';
 import { Send, Hash, Smile, Paperclip } from 'lucide-react';
-import { Message, getMessagesByChannel, Channel, DirectMessage } from '@/lib/mockData';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useAuth } from '@/contexts/AuthContext';
 import { format } from 'date-fns';
 
-interface ChatAreaProps {
-  currentChannel: Channel | null;
-  currentDm: DirectMessage | null;
-  currentChannelId: string;
+interface Message {
+    _id: string;
+    conversationId: string;
+    sender: {
+        _id: string;
+        username: string;
+        profilePhoto: string;
+    };
+    text: string;
+    timestamp: string;
 }
 
-const ChatArea = ({ currentChannel, currentDm, currentChannelId }: ChatAreaProps) => {
+interface ChatAreaProps {
+  currentChannel: { _id: string, name: string, description: string } | null;
+  currentDm: { _id:string, participants: any[] } | null;
+  currentConversationId: string | null;
+}
+
+const ChatArea = ({ currentChannel, currentDm, currentConversationId }: ChatAreaProps) => {
   const { user } = useAuth();
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const socketRef = useRef<Socket | null>(null);
 
-  // CRITICAL: Refresh messages when channel changes
   useEffect(() => {
-    if (currentDm) {
-      // For DMs, show empty or mock DM messages
-      setMessages([]);
-    } else {
-      const channelMessages = getMessagesByChannel(currentChannelId);
-      setMessages(channelMessages);
-    }
-  }, [currentChannelId, currentDm]);
+    if (!currentConversationId) return;
+
+    // Connect to the server and authenticate
+    socketRef.current = io('http://localhost:3000'); 
+    const socket = socketRef.current;
+
+    socket.on('connect', () => {
+        console.log('Socket connected');
+        socket.emit('join-room', currentConversationId);
+    });
+
+    socket.on('room-messages', (data: { room: string, messages: Message[] }) => {
+        if (data.room === currentConversationId) {
+            setMessages(data.messages);
+        }
+    });
+
+    socket.on('message', (message: Message) => {
+        if (message.conversationId === currentConversationId) {
+            setMessages(prev => [...prev, message]);
+        }
+    });
+
+    socket.on('error', (error) => {
+        console.error('Socket error:', error);
+    });
+
+    return () => {
+        socket.emit('leave-room', currentConversationId);
+        socket.disconnect();
+    };
+}, [currentConversationId]);
+
 
   // Auto-scroll to bottom
   useEffect(() => {
@@ -37,18 +74,13 @@ const ChatArea = ({ currentChannel, currentDm, currentChannelId }: ChatAreaProps
 
   const handleSendMessage = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newMessage.trim() || !user) return;
+    if (!newMessage.trim() || !user || !socketRef.current || !currentConversationId) return;
 
-    const message: Message = {
-      id: `msg-${Date.now()}`,
-      channelId: currentChannelId,
-      senderId: user.id,
-      senderName: user.name,
-      content: newMessage.trim(),
-      timestamp: new Date(),
-    };
+    socketRef.current.emit('message', {
+        conversationId: currentConversationId,
+        message: newMessage.trim()
+    });
 
-    setMessages(prev => [...prev, message]);
     setNewMessage('');
   };
 
@@ -59,7 +91,12 @@ const ChatArea = ({ currentChannel, currentDm, currentChannelId }: ChatAreaProps
     }
   };
 
-  const title = currentDm ? currentDm.recipientName : currentChannel?.name || 'General';
+  const getDmRecipient = () => {
+    if (!currentDm || !user) return null;
+    return currentDm.participants.find(p => p._id !== user.id);
+  }
+
+  const title = currentDm ? getDmRecipient()?.username : currentChannel?.name;
   const description = currentDm ? 'Direct Message' : currentChannel?.description;
 
   return (
@@ -90,17 +127,17 @@ const ChatArea = ({ currentChannel, currentDm, currentChannelId }: ChatAreaProps
             </div>
           ) : (
             messages.map((message, index) => {
-              const showAvatar = index === 0 || messages[index - 1].senderId !== message.senderId;
-              const isOwn = message.senderId === user?.id;
+              const showAvatar = index === 0 || messages[index - 1].sender._id !== message.sender._id;
+              const isOwn = message.sender._id === user?.id;
               
               return (
                 <div
-                  key={message.id}
+                  key={message._id}
                   className={`flex gap-3 ${showAvatar ? 'mt-4' : 'mt-1'} animate-fade-in`}
                 >
                   {showAvatar ? (
                     <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-sm font-medium shrink-0">
-                      {message.senderName.charAt(0)}
+                      {message.sender.username.charAt(0)}
                     </div>
                   ) : (
                     <div className="w-8" />
@@ -109,14 +146,14 @@ const ChatArea = ({ currentChannel, currentDm, currentChannelId }: ChatAreaProps
                     {showAvatar && (
                       <div className="flex items-center gap-2 mb-0.5">
                         <span className={`font-medium text-sm ${isOwn ? 'text-primary' : ''}`}>
-                          {message.senderName}
+                          {message.sender.username}
                         </span>
                         <span className="text-xs text-muted-foreground">
                           {format(new Date(message.timestamp), 'h:mm a')}
                         </span>
                       </div>
                     )}
-                    <p className="text-sm text-foreground break-words">{message.content}</p>
+                    <p className="text-sm text-foreground break-words">{message.text}</p>
                   </div>
                 </div>
               );

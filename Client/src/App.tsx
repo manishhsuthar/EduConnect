@@ -36,7 +36,7 @@ const App = () => (
               
               {/* Admin Routes */}
               <Route path="/admin-login" element={<AdminLogin />} />
-              <Route path="/admin" element={<AdminDashboard />} />
+              <Route path="/admin" element={<ProtectedRoute><AdminDashboard /></ProtectedRoute>} />
               
               {/* Protected Routes */}
               <Route
@@ -50,9 +50,9 @@ const App = () => (
               <Route
                 path="/dashboard"
                 element={
-                  
+                  <ProtectedRoute>
                     <Dashboard />
-                  
+                  </ProtectedRoute>
                 }
               />
               

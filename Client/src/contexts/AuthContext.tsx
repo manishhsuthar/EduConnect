@@ -12,7 +12,6 @@ interface User {
 
 interface AuthContextType {
   user: User | null;
-  token: string | null;
   isLoading: boolean;
   login: (email: string, password: string) => Promise<{ success: boolean; error?: string; profileSetupRequired?: boolean; isAdmin?: boolean }>;
   loginWithGoogle: () => Promise<{ success: boolean; error?: string }>;
@@ -33,31 +32,21 @@ export const useAuth = () => {
 
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
-  const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     const fetchUser = async () => {
-      const storedToken = localStorage.getItem('token');
-      if (storedToken) {
-        try {
-          const res = await fetch('/user', {
-            headers: {
-              'Authorization': `Bearer ${storedToken}`,
-            },
-          });
-          if (res.ok) {
-            const userData = await res.json();
-            setUser(userData);
-            setToken(storedToken);
-          } else {
-            // Token is invalid, clear it
-            logout();
-          }
-        } catch (error) {
-          console.error("Failed to fetch user", error);
-          logout();
+      try {
+        const res = await fetch('/api/auth/me');
+        if (res.ok) {
+          const userData = await res.json();
+          setUser(userData);
+        } else {
+          setUser(null);
         }
+      } catch (error) {
+        console.error("Failed to fetch user", error);
+        setUser(null);
       }
       setIsLoading(false);
     };
@@ -66,7 +55,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const login = async (email: string, password: string): Promise<{ success: boolean; error?: string; profileSetupRequired?: boolean; isAdmin?: boolean }> => {
     try {
-      const res = await fetch('/login', {
+      const res = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),
@@ -77,19 +66,14 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         return { success: false, error: data.message || 'Login failed' };
       }
 
-      if (data.token) {
-        localStorage.setItem('token', data.token);
-        setToken(data.token);
-      }
       if(data.user) {
         setUser(data.user);
-        localStorage.setItem('user', JSON.stringify(data.user));
       }
 
       return { 
         success: true, 
-        profileSetupRequired: data.profileSetupRequired,
-        isAdmin: data.isAdmin
+        profileSetupRequired: !data.user.isProfileComplete,
+        isAdmin: data.user.role === 'admin'
       };
     } catch (error) {
       return { success: false, error: 'An unexpected error occurred.' };
@@ -111,7 +95,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   ): Promise<{ success: boolean; error?: string; profileSetupRequired?: boolean }> => {
     const roleLower = role.toLowerCase();
     try {
-      const res = await fetch('/signup', {
+      const res = await fetch('/api/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username, email, password, role: roleLower }),
@@ -122,16 +106,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         return { success: false, error: data.message || 'Registration failed' };
       }
       
-      if (data.token) {
-        localStorage.setItem('token', data.token);
-        setToken(data.token);
-      }
-      if(data.user) {
-        setUser(data.user);
-        localStorage.setItem('user', JSON.stringify(data.user));
-      }
-
-      return { success: true, profileSetupRequired: data.profileSetupRequired };
+      return { success: true, profileSetupRequired: true };
     } catch (error) {
       return { success: false, error: 'An unexpected error occurred.' };
     }
@@ -139,13 +114,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const logout = async () => {
     try {
-        await fetch('/logout', { method: 'POST' });
+        await fetch('/api/auth/logout', { method: 'POST' });
     } catch (error) {
         console.error("Failed to logout from server", error);
     } finally {
-        localStorage.removeItem('token');
-        localStorage.removeItem('user');
-        setToken(null);
         setUser(null);
     }
   };
@@ -153,7 +125,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const updateProfile = (profileData: Partial<User>) => {
     if (user) {
       const updatedUser = { ...user, ...profileData, isProfileComplete: true };
-      localStorage.setItem('user', JSON.stringify(updatedUser));
       setUser(updatedUser);
     }
   };
@@ -162,7 +133,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     <AuthContext.Provider
       value={{
         user,
-        token,
         isLoading,
         login,
         loginWithGoogle,

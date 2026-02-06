@@ -162,4 +162,69 @@ router.post('/profile-setup', upload.single('profilePhoto'), async (req, res) =>
   }
 });
 
+const { protect } = require('../middleware/authMiddleware');
+
+// GET /me
+router.get('/me', protect, async (req, res) => {
+    try {
+        const user = await User.findById(req.user.id).select('-password');
+        res.json(user);
+    } catch (error) {
+        console.error('Error fetching user profile:', error);
+        res.status(500).json({ message: 'Internal server error' });
+    }
+});
+
+// POST /login
+router.post('/login', async (req, res) => {
+    try {
+        const { email, password } = req.body;
+        const user = await User.findOne({ email });
+
+        if (!user) {
+            return res.status(401).json({ message: 'Invalid credentials' });
+        }
+
+        const isMatch = await bcrypt.compare(password, user.password);
+
+        if (!isMatch) {
+            return res.status(401).json({ message: 'Invalid credentials' });
+        }
+
+        const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET || 'your_default_secret', {
+            expiresIn: '1h',
+        });
+
+        res.cookie('token', token, {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: 'strict',
+        });
+
+        // Set user session
+        req.session.user = {
+            id: user._id,
+            username: user.username,
+            role: user.role,
+        };
+        req.session.userId = user._id;
+
+
+        res.json({ message: 'Logged in successfully', user });
+    } catch (error) {
+        console.error('Login error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// POST /logout
+router.post('/logout', (req, res) => {
+    res.cookie('token', '', {
+        httpOnly: true,
+        expires: new Date(0),
+    });
+    req.session.destroy();
+    res.json({ message: 'Logged out successfully' });
+});
+
 module.exports = router;

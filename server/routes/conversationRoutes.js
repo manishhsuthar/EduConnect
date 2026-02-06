@@ -19,6 +19,37 @@ const isFaculty = async (req, res, next) => {
     }
 };
 
+const { protect } = require('../middleware/authMiddleware');
+
+// GET all DM conversations for the current user
+router.get('/dms', protect, async (req, res) => {
+    try {
+        const dms = await Conversation.find({ type: 'dm', participants: req.user.id })
+            .populate('participants', 'username profilePhoto');
+        res.json(dms);
+    } catch (error) {
+        res.status(500).json({ message: 'Error fetching DMs.' });
+    }
+});
+
+// GET messages for a specific DM conversation
+router.get('/dms/:id/messages', protect, async (req, res) => {
+    try {
+        const conversation = await Conversation.findById(req.params.id);
+        if (!conversation) {
+            return res.status(404).json({ message: 'Conversation not found.' });
+        }
+        // Ensure the user is a participant of the conversation
+        if (!conversation.participants.includes(req.user.id)) {
+            return res.status(403).json({ message: 'Not authorized to view this conversation.' });
+        }
+        const messages = await Message.find({ conversationId: req.params.id }).populate('sender', 'username profilePhoto');
+        res.json(messages);
+    } catch (error) {
+        res.status(500).json({ message: 'Error fetching messages.' });
+    }
+});
+
 // GET all rooms
 router.get('/rooms', async (req, res) => {
     try {

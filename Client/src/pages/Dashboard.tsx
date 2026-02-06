@@ -1,8 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
-import { mockChannels, mockDirectMessages, getChannelById } from '@/lib/mockData';
 import Sidebar from '@/components/dashboard/Sidebar';
 import ChatArea from '@/components/dashboard/ChatArea';
 import InfoPanel from '@/components/dashboard/InfoPanel';
@@ -39,16 +38,45 @@ const Dashboard = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   
+  const [channels, setChannels] = useState([]);
+  const [directMessages, setDirectMessages] = useState([]);
   // State for current view
-  const [currentChannelId, setCurrentChannelId] = useState('general');
+  const [currentChannelId, setCurrentChannelId] = useState<string | null>(null);
   const [currentDmId, setCurrentDmId] = useState<string | null>(null);
   const [showInfoPanel, setShowInfoPanel] = useState(true);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  const currentChannel = getChannelById(currentChannelId);
-  const currentDm = currentDmId 
-    ? mockDirectMessages.find(dm => dm.id === currentDmId) 
-    : null;
+  useEffect(() => {
+    const fetchConversations = async () => {
+      try {
+        const [channelsRes, dmsRes] = await Promise.all([
+          fetch('/api/conversations/rooms'),
+          fetch('/api/conversations/dms')
+        ]);
+        const channelsData = await channelsRes.json();
+        const dmsData = await dmsRes.json();
+        setChannels(channelsData);
+        setDirectMessages(dmsData);
+        if (channelsData.length > 0) {
+          setCurrentChannelId(channelsData[0]._id);
+        }
+      } catch (error) {
+        console.error('Failed to fetch conversations', error);
+        toast({
+          title: 'Error',
+          description: 'Failed to fetch conversations.',
+          variant: 'destructive',
+        });
+      }
+    };
+
+    if (user) {
+      fetchConversations();
+    }
+  }, [user, toast]);
+
+  const currentChannel = channels.find(c => c._id === currentChannelId);
+  const currentDm = directMessages.find(dm => dm._id === currentDmId);
 
   const handleChannelSelect = (channelId: string) => {
     setCurrentChannelId(channelId);
@@ -58,6 +86,7 @@ const Dashboard = () => {
 
   const handleDmSelect = (dmId: string) => {
     setCurrentDmId(dmId);
+    setCurrentChannelId(null);
     setMobileMenuOpen(false);
   };
 
@@ -98,8 +127,8 @@ const Dashboard = () => {
                   <span className="font-semibold">EduConnect Hub</span>
                 </div>
                 <Sidebar
-                  channels={mockChannels}
-                  directMessages={mockDirectMessages}
+                  channels={channels}
+                  directMessages={directMessages}
                   currentChannelId={currentChannelId}
                   currentDmId={currentDmId}
                   onChannelSelect={handleChannelSelect}
@@ -146,9 +175,9 @@ const Dashboard = () => {
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" className="gap-2 px-2">
                 <div className="w-7 h-7 rounded-full bg-primary/20 flex items-center justify-center text-sm font-medium">
-                  {user?.name?.charAt(0) || 'U'}
+                  {user?.username?.charAt(0) || 'U'}
                 </div>
-                <span className="hidden sm:block text-sm">{user?.name}</span>
+                <span className="hidden sm:block text-sm">{user?.username}</span>
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-48">
@@ -175,8 +204,8 @@ const Dashboard = () => {
         {/* Desktop Sidebar */}
         <aside className="hidden lg:block w-64 border-r border-border shrink-0">
           <Sidebar
-            channels={mockChannels}
-            directMessages={mockDirectMessages}
+            channels={channels}
+            directMessages={directMessages}
             currentChannelId={currentChannelId}
             currentDmId={currentDmId}
             onChannelSelect={handleChannelSelect}
@@ -190,7 +219,7 @@ const Dashboard = () => {
           <ChatArea
             currentChannel={currentChannel || null}
             currentDm={currentDm || null}
-            currentChannelId={currentChannelId}
+            currentConversationId={currentChannelId || currentDmId}
           />
         </main>
 
