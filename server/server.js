@@ -11,6 +11,7 @@ const path = require('path');
 const cookieParser = require('cookie-parser');
 const authRoutes = require('./routes/authRoutes');
 const conversationRoutes = require('./routes/conversationRoutes');
+const adminRoutes = require('./routes/adminRoutes');
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: "*" } });
@@ -43,6 +44,7 @@ app.get('/test-cookies', (req, res) => {
 
 app.use('/api/auth', authRoutes);
 app.use('/api/conversations', conversationRoutes);
+app.use('/api/admin', adminRoutes);
 
 // Static files - Serve from client_old/public which contains your landing and login pages
 app.use(express.static(path.join(__dirname, '../Client/dist')));

@@ -1,11 +1,5 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { 
-  mockUsers, 
-  mockUnapprovedFaculty, 
-  mockMessages,
-  User 
-} from '@/lib/mockData';
 import { Button } from '@/components/ui/button';
 import { 
   Table,
@@ -24,59 +18,145 @@ import {
   MessageSquare,
   Trash2,
   Check,
-  X,
   LogOut
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
+import { useAuth } from '@/contexts/AuthContext';
+
+interface AdminUser {
+  _id: string;
+  username: string;
+  email: string;
+  role: 'student' | 'faculty' | 'admin';
+  department?: string;
+  subjectsTaught?: string[];
+  isApproved?: boolean;
+  createdAt?: string;
+}
+
+interface AdminMessage {
+  _id: string;
+  text: string;
+  createdAt: string;
+  sender?: { username?: string };
+  conversationId?: { name?: string; type?: string };
+}
 
 const AdminDashboard = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { logout } = useAuth();
   
-  const [users, setUsers] = useState<User[]>(mockUsers);
-  const [unapprovedFaculty, setUnapprovedFaculty] = useState<User[]>(mockUnapprovedFaculty);
+  const [users, setUsers] = useState<AdminUser[]>([]);
+  const [unapprovedFaculty, setUnapprovedFaculty] = useState<AdminUser[]>([]);
+  const [messages, setMessages] = useState<AdminMessage[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const adminToken = localStorage.getItem('adminToken');
-    if (!adminToken) {
-      navigate('/admin-login');
-    }
-  }, [navigate]);
+    const fetchAdminData = async () => {
+      setIsLoading(true);
+      try {
+        const [usersRes, pendingRes, messagesRes] = await Promise.all([
+          fetch('/api/admin/users'),
+          fetch('/api/admin/faculty/pending'),
+          fetch('/api/admin/messages'),
+        ]);
 
-  const handleApproveFaculty = (facultyId: string) => {
-    const faculty = unapprovedFaculty.find(f => f.id === facultyId);
-    if (faculty) {
-      setUnapprovedFaculty(prev => prev.filter(f => f.id !== facultyId));
-      setUsers(prev => [...prev, faculty]);
+        if (!usersRes.ok || !pendingRes.ok || !messagesRes.ok) {
+          throw new Error('Failed to load admin data');
+        }
+
+        const [usersData, pendingData, messagesData] = await Promise.all([
+          usersRes.json(),
+          pendingRes.json(),
+          messagesRes.json(),
+        ]);
+
+        setUsers(usersData);
+        setUnapprovedFaculty(pendingData);
+        setMessages(messagesData);
+      } catch (error) {
+        console.error(error);
+        toast({
+          title: 'Error',
+          description: 'Failed to load admin data.',
+          variant: 'destructive',
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchAdminData();
+  }, [toast]);
+
+  const handleApproveFaculty = async (facultyId: string) => {
+    try {
+      const res = await fetch(`/api/admin/faculty/${facultyId}/approve`, {
+        method: 'POST',
+      });
+      if (!res.ok) throw new Error('Approve failed');
+      const updated = await res.json();
+      setUnapprovedFaculty(prev => prev.filter(f => f._id !== facultyId));
+      setUsers(prev => prev.map(u => (u._id === updated._id ? updated : u)));
       toast({
         title: 'Faculty Approved',
-        description: `${faculty.name} has been approved.`,
+        description: `${updated.username} has been approved.`,
+      });
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: 'Failed to approve faculty.',
+        variant: 'destructive',
       });
     }
   };
 
-  const handleRejectFaculty = (facultyId: string) => {
-    const faculty = unapprovedFaculty.find(f => f.id === facultyId);
-    setUnapprovedFaculty(prev => prev.filter(f => f.id !== facultyId));
-    toast({
-      title: 'Faculty Rejected',
-      description: faculty ? `${faculty.name} has been rejected.` : 'Faculty rejected.',
-      variant: 'destructive',
-    });
+  const handleRejectFaculty = async (facultyId: string) => {
+    try {
+      const res = await fetch(`/api/admin/users/${facultyId}`, {
+        method: 'DELETE',
+      });
+      if (!res.ok) throw new Error('Reject failed');
+      setUnapprovedFaculty(prev => prev.filter(f => f._id !== facultyId));
+      setUsers(prev => prev.filter(u => u._id !== facultyId));
+      toast({
+        title: 'Faculty Rejected',
+        description: 'Faculty has been rejected.',
+        variant: 'destructive',
+      });
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: 'Failed to reject faculty.',
+        variant: 'destructive',
+      });
+    }
   };
 
-  const handleDeleteUser = (userId: string) => {
-    const user = users.find(u => u.id === userId);
-    setUsers(prev => prev.filter(u => u.id !== userId));
-    toast({
-      title: 'User Deleted',
-      description: user ? `${user.name} has been removed.` : 'User removed.',
-    });
+  const handleDeleteUser = async (userId: string) => {
+    try {
+      const res = await fetch(`/api/admin/users/${userId}`, {
+        method: 'DELETE',
+      });
+      if (!res.ok) throw new Error('Delete failed');
+      setUsers(prev => prev.filter(u => u._id !== userId));
+      toast({
+        title: 'User Deleted',
+        description: 'User has been removed.',
+      });
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: 'Failed to delete user.',
+        variant: 'destructive',
+      });
+    }
   };
 
   const handleLogout = () => {
-    localStorage.removeItem('adminToken');
+    logout();
     navigate('/admin-login');
     toast({
       title: 'Logged Out',
@@ -120,7 +200,7 @@ const AdminDashboard = () => {
           {[
             { label: 'Total Users', value: users.length, icon: Users },
             { label: 'Pending Approvals', value: unapprovedFaculty.length, icon: UserCheck },
-            { label: 'Total Messages', value: mockMessages.length, icon: MessageSquare },
+            { label: 'Total Messages', value: messages.length, icon: MessageSquare },
           ].map((stat) => (
             <div key={stat.label} className="glass rounded-xl p-4">
               <div className="flex items-center gap-3">
@@ -160,7 +240,9 @@ const AdminDashboard = () => {
 
           {/* Pending Approvals */}
           <TabsContent value="approvals" className="glass rounded-xl p-4">
-            {unapprovedFaculty.length === 0 ? (
+            {isLoading ? (
+              <div className="text-center py-12 text-muted-foreground">Loading...</div>
+            ) : unapprovedFaculty.length === 0 ? (
               <div className="text-center py-12">
                 <UserCheck className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
                 <p className="text-muted-foreground">No pending approvals</p>
@@ -178,18 +260,18 @@ const AdminDashboard = () => {
                 </TableHeader>
                 <TableBody>
                   {unapprovedFaculty.map((faculty) => (
-                    <TableRow key={faculty.id}>
-                      <TableCell className="font-medium">{faculty.name}</TableCell>
+                    <TableRow key={faculty._id}>
+                      <TableCell className="font-medium">{faculty.username}</TableCell>
                       <TableCell>{faculty.email}</TableCell>
-                      <TableCell>{faculty.department}</TableCell>
-                      <TableCell>{faculty.subjects?.join(', ')}</TableCell>
+                      <TableCell>{faculty.department || '—'}</TableCell>
+                      <TableCell>{faculty.subjectsTaught?.join(', ') || '—'}</TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-2">
                           <Button
                             size="sm"
                             variant="outline"
                             className="text-green-500 hover:text-green-600"
-                            onClick={() => handleApproveFaculty(faculty.id)}
+                            onClick={() => handleApproveFaculty(faculty._id)}
                           >
                             <Check className="w-4 h-4" />
                           </Button>
@@ -197,9 +279,9 @@ const AdminDashboard = () => {
                             size="sm"
                             variant="outline"
                             className="text-destructive hover:text-destructive"
-                            onClick={() => handleRejectFaculty(faculty.id)}
+                            onClick={() => handleRejectFaculty(faculty._id)}
                           >
-                            <X className="w-4 h-4" />
+                            <Trash2 className="w-4 h-4" />
                           </Button>
                         </div>
                       </TableCell>
@@ -212,84 +294,96 @@ const AdminDashboard = () => {
 
           {/* All Users */}
           <TabsContent value="users" className="glass rounded-xl p-4">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Email</TableHead>
-                  <TableHead>Role</TableHead>
-                  <TableHead>Department</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {users.map((user) => (
-                  <TableRow key={user.id}>
-                    <TableCell className="font-medium">{user.name}</TableCell>
-                    <TableCell>{user.email}</TableCell>
-                    <TableCell>
-                      <span className={`px-2 py-0.5 rounded text-xs font-medium ${
-                        user.role === 'Faculty' 
-                          ? 'bg-blue-500/20 text-blue-500' 
-                          : 'bg-green-500/20 text-green-500'
-                      }`}>
-                        {user.role}
-                      </span>
-                    </TableCell>
-                    <TableCell>{user.department || '—'}</TableCell>
-                    <TableCell>
-                      <span className={`inline-flex items-center gap-1 text-xs ${
-                        user.isOnline ? 'text-green-500' : 'text-muted-foreground'
-                      }`}>
-                        <span className={`w-2 h-2 rounded-full ${
-                          user.isOnline ? 'bg-green-500' : 'bg-muted-foreground'
-                        }`} />
-                        {user.isOnline ? 'Online' : 'Offline'}
-                      </span>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                        onClick={() => handleDeleteUser(user.id)}
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
-                    </TableCell>
+            {isLoading ? (
+              <div className="text-center py-12 text-muted-foreground">Loading...</div>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Name</TableHead>
+                    <TableHead>Email</TableHead>
+                    <TableHead>Role</TableHead>
+                    <TableHead>Department</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {users.map((user) => (
+                    <TableRow key={user._id}>
+                      <TableCell className="font-medium">{user.username}</TableCell>
+                      <TableCell>{user.email}</TableCell>
+                      <TableCell>
+                        <span className={`px-2 py-0.5 rounded text-xs font-medium ${
+                          user.role === 'faculty'
+                            ? 'bg-blue-500/20 text-blue-500'
+                            : user.role === 'admin'
+                              ? 'bg-purple-500/20 text-purple-500'
+                              : 'bg-green-500/20 text-green-500'
+                        }`}>
+                          {user.role}
+                        </span>
+                      </TableCell>
+                      <TableCell>{user.department || '—'}</TableCell>
+                      <TableCell>
+                        <span className={`inline-flex items-center gap-1 text-xs ${
+                          user.isApproved ? 'text-green-500' : 'text-muted-foreground'
+                        }`}>
+                          <span className={`w-2 h-2 rounded-full ${
+                            user.isApproved ? 'bg-green-500' : 'bg-muted-foreground'
+                          }`} />
+                          {user.isApproved ? 'Approved' : 'Pending'}
+                        </span>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                          onClick={() => handleDeleteUser(user._id)}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
           </TabsContent>
 
           {/* Messages */}
           <TabsContent value="messages" className="glass rounded-xl p-4">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Sender</TableHead>
-                  <TableHead>Channel</TableHead>
-                  <TableHead>Message</TableHead>
-                  <TableHead>Timestamp</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {mockMessages.map((message) => (
-                  <TableRow key={message.id}>
-                    <TableCell className="font-medium">{message.senderName}</TableCell>
-                    <TableCell>
-                      <span className="text-muted-foreground">#{message.channelId}</span>
-                    </TableCell>
-                    <TableCell className="max-w-xs truncate">{message.content}</TableCell>
-                    <TableCell className="text-muted-foreground">
-                      {format(new Date(message.timestamp), 'MMM d, h:mm a')}
-                    </TableCell>
+            {isLoading ? (
+              <div className="text-center py-12 text-muted-foreground">Loading...</div>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Sender</TableHead>
+                    <TableHead>Channel</TableHead>
+                    <TableHead>Message</TableHead>
+                    <TableHead>Timestamp</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {messages.map((message) => (
+                    <TableRow key={message._id}>
+                      <TableCell className="font-medium">{message.sender?.username || 'Unknown'}</TableCell>
+                      <TableCell>
+                        <span className="text-muted-foreground">
+                          #{message.conversationId?.name || 'unknown'}
+                        </span>
+                      </TableCell>
+                      <TableCell className="max-w-xs truncate">{message.text}</TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {format(new Date(message.createdAt), 'MMM d, h:mm a')}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
           </TabsContent>
         </Tabs>
       </main>

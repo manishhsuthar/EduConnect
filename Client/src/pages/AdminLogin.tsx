@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { MessageCircle, Mail, Lock, Eye, EyeOff, Loader2, Shield } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/contexts/AuthContext';
 
 const AdminLogin = () => {
   const [email, setEmail] = useState('');
@@ -13,31 +14,38 @@ const AdminLogin = () => {
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { login } = useAuth();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
 
-    // Simulate API delay
-    await new Promise(resolve => setTimeout(resolve, 800));
-
-    // Mock admin credentials
-    if (email === 'admin' && password === 'admin') {
-      localStorage.setItem('adminToken', 'admin-token-' + Date.now());
+    try {
+      const result = await login(email, password);
+      if (!result.success) {
+        toast({
+          title: 'Invalid Credentials',
+          description: result.error || 'Login failed.',
+          variant: 'destructive',
+        });
+        return;
+      }
+      if (!result.isAdmin) {
+        toast({
+          title: 'Access Denied',
+          description: 'Admin access required.',
+          variant: 'destructive',
+        });
+        return;
+      }
       toast({
         title: 'Welcome, Admin',
         description: 'Successfully logged in to admin dashboard.',
       });
       navigate('/admin');
-    } else {
-      toast({
-        title: 'Invalid Credentials',
-        description: 'Please use admin/admin to login.',
-        variant: 'destructive',
-      });
+    } finally {
+      setIsLoading(false);
     }
-
-    setIsLoading(false);
   };
 
   return (
@@ -112,7 +120,7 @@ const AdminLogin = () => {
 
           <div className="mt-6 p-3 rounded-lg bg-muted/50 border border-border">
             <p className="text-xs text-muted-foreground text-center">
-              <strong>Demo Credentials:</strong> admin / admin
+              Use your admin account credentials.
             </p>
           </div>
 
