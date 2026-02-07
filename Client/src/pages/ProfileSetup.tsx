@@ -42,7 +42,7 @@ const ProfileSetup = () => {
     // Simulate API delay
     await new Promise(resolve => setTimeout(resolve, 800));
 
-    if (user?.role === 'Student') {
+    if (user?.role === 'student') {
       if (!department || !year) {
         toast({
           title: 'Error',
@@ -101,7 +101,7 @@ const ProfileSetup = () => {
           </div>
 
           <h2 className="text-2xl font-bold text-center mb-2">
-            Welcome, {user?.name?.split(' ')[0]}! 👋
+            Welcome, {user?.username?.split(' ')[0]}!
           </h2>
           <p className="text-muted-foreground text-center text-sm mb-6">
             Complete your profile to get started
@@ -131,7 +131,7 @@ const ProfileSetup = () => {
               </Select>
             </div>
 
-            {user?.role === 'Student' ? (
+            {user?.role === 'student' ? (
               <div className="space-y-2">
                 <Label htmlFor="year">Year *</Label>
                 <Select value={year} onValueChange={setYear}>

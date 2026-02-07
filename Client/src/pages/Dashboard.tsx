@@ -31,6 +31,7 @@ import {
   Moon
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import type { Channel, DirectMessage } from '@/lib/mockData';
 
 const Dashboard = () => {
   const { user, logout } = useAuth();
@@ -38,8 +39,10 @@ const Dashboard = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   
-  const [channels, setChannels] = useState([]);
-  const [directMessages, setDirectMessages] = useState([]);
+  const [channels, setChannels] = useState<Channel[]>([]);
+  const [directMessages, setDirectMessages] = useState<DirectMessage[]>([]);
+  const [rawChannels, setRawChannels] = useState<any[]>([]);
+  const [rawDms, setRawDms] = useState<any[]>([]);
   // State for current view
   const [currentChannelId, setCurrentChannelId] = useState<string | null>(null);
   const [currentDmId, setCurrentDmId] = useState<string | null>(null);
@@ -55,8 +58,44 @@ const Dashboard = () => {
         ]);
         const channelsData = await channelsRes.json();
         const dmsData = await dmsRes.json();
-        setChannels(channelsData);
-        setDirectMessages(dmsData);
+        setRawChannels(channelsData);
+        setRawDms(dmsData);
+
+        const mapChannelIcon = (name: string): string => {
+          const lower = name.toLowerCase();
+          if (lower.includes('announcement')) return 'Megaphone';
+          if (lower.includes('help')) return 'HelpCircle';
+          if (lower.includes('computer') || lower.includes('code')) return 'Code';
+          if (lower.includes('civil')) return 'Building2';
+          if (lower.includes('electrical') || lower.includes('electronics')) return 'Zap';
+          return 'Hash';
+        };
+
+        const mappedChannels: Channel[] = channelsData.map((c: any) => ({
+          id: c._id,
+          name: c.name,
+          description: c.description || '',
+          icon: mapChannelIcon(c.name),
+          unreadCount: 0,
+        }));
+
+        const mappedDms: DirectMessage[] = dmsData.map((dm: any) => {
+          const recipient = dm.participants?.find((p: any) => p._id !== user?.id);
+          return {
+            id: dm._id,
+            recipientId: recipient?._id || '',
+            recipientName: recipient?.username || 'Unknown',
+            recipientAvatar: recipient?.profilePhoto,
+            lastMessage: '',
+            timestamp: new Date(),
+            unreadCount: 0,
+            isOnline: false,
+          };
+        });
+
+        setChannels(mappedChannels);
+        setDirectMessages(mappedDms);
+
         if (channelsData.length > 0) {
           setCurrentChannelId(channelsData[0]._id);
         }
@@ -75,8 +114,8 @@ const Dashboard = () => {
     }
   }, [user, toast]);
 
-  const currentChannel = channels.find(c => c._id === currentChannelId);
-  const currentDm = directMessages.find(dm => dm._id === currentDmId);
+  const currentChannel = rawChannels.find(c => c._id === currentChannelId) || null;
+  const currentDm = rawDms.find(dm => dm._id === currentDmId) || null;
 
   const handleChannelSelect = (channelId: string) => {
     setCurrentChannelId(channelId);

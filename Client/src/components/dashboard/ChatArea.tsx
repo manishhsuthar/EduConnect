@@ -16,7 +16,7 @@ interface Message {
         profilePhoto: string;
     };
     text: string;
-    timestamp: string;
+    createdAt: string;
 }
 
 interface ChatAreaProps {
@@ -36,7 +36,9 @@ const ChatArea = ({ currentChannel, currentDm, currentConversationId }: ChatArea
     if (!currentConversationId) return;
 
     // Connect to the server and authenticate
-    socketRef.current = io('http://localhost:3000'); 
+    const socketUrl =
+      (import.meta as any).env?.VITE_SOCKET_URL || window.location.origin;
+    socketRef.current = io(socketUrl);
     const socket = socketRef.current;
 
     socket.on('connect', () => {
@@ -149,7 +151,7 @@ const ChatArea = ({ currentChannel, currentDm, currentConversationId }: ChatArea
                           {message.sender.username}
                         </span>
                         <span className="text-xs text-muted-foreground">
-                          {format(new Date(message.timestamp), 'h:mm a')}
+                          {format(new Date(message.createdAt), 'h:mm a')}
                         </span>
                       </div>
                     )}

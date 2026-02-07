@@ -7,7 +7,10 @@ interface User {
   role: 'student' | 'faculty' | 'admin';
   isApproved: boolean;
   isProfileComplete: boolean;
-  // Add other fields from your User model as needed
+  department?: string;
+  year?: string;
+  subjects?: string[];
+  profilePhoto?: string;
 }
 
 interface AuthContextType {
@@ -34,13 +37,26 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
+  const normalizeUser = (raw: any): User => ({
+    id: raw.id || raw._id,
+    username: raw.username,
+    email: raw.email,
+    role: raw.role,
+    isApproved: raw.isApproved ?? false,
+    isProfileComplete: raw.isProfileComplete ?? false,
+    department: raw.department,
+    year: raw.year,
+    subjects: raw.subjects,
+    profilePhoto: raw.profilePhoto,
+  });
+
   useEffect(() => {
     const fetchUser = async () => {
       try {
         const res = await fetch('/api/auth/me');
         if (res.ok) {
           const userData = await res.json();
-          setUser(userData);
+          setUser(normalizeUser(userData));
         } else {
           setUser(null);
         }
@@ -67,7 +83,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       }
 
       if(data.user) {
-        setUser(data.user);
+        setUser(normalizeUser(data.user));
       }
 
       return { 
