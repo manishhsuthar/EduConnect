@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useAuth } from '@/contexts/AuthContext';
 import { format } from 'date-fns';
+import { useToast } from '@/hooks/use-toast';
 
 interface Message {
     _id: string;
@@ -17,6 +18,12 @@ interface Message {
     };
     text: string;
     createdAt: string;
+    attachment?: {
+        url: string;
+        filename: string;
+        mimetype: string;
+        size: number;
+    };
 }
 
 interface ChatAreaProps {
@@ -29,6 +36,9 @@ const ChatArea = ({ currentChannel, currentDm, currentConversationId }: ChatArea
   const { user } = useAuth();
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState('');
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const { toast } = useToast();
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const socketRef = useRef<Socket | null>(null);
 
@@ -76,7 +86,7 @@ const ChatArea = ({ currentChannel, currentDm, currentConversationId }: ChatArea
 
   const handleSendMessage = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newMessage.trim() || !user || !socketRef.current || !currentConversationId) return;
+    if ((!newMessage.trim()) || !user || !socketRef.current || !currentConversationId) return;
 
     socketRef.current.emit('message', {
         conversationId: currentConversationId,
@@ -84,6 +94,72 @@ const ChatArea = ({ currentChannel, currentDm, currentConversationId }: ChatArea
     });
 
     setNewMessage('');
+  };
+
+  const handleFileClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !currentConversationId || !socketRef.current) return;
+
+    const isImageOrVideo = file.type.startsWith('image/') || file.type.startsWith('video/');
+    if (!isImageOrVideo) {
+      toast({
+        title: 'Invalid file type',
+        description: 'Only image or video files are allowed.',
+        variant: 'destructive',
+      });
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      toast({
+        title: 'File too large',
+        description: 'Max file size is 5MB.',
+        variant: 'destructive',
+      });
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      return;
+    }
+
+    setUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const res = await fetch('/api/conversations/upload', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!res.ok) {
+        throw new Error('Upload failed');
+      }
+
+      const data = await res.json();
+      socketRef.current.emit('message', {
+        conversationId: currentConversationId,
+        message: newMessage.trim() || '',
+        attachment: data,
+      });
+
+      setNewMessage('');
+    } catch (error) {
+      console.error('Upload error:', error);
+      toast({
+        title: 'Upload failed',
+        description: 'Please try again.',
+        variant: 'destructive',
+      });
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -155,7 +231,21 @@ const ChatArea = ({ currentChannel, currentDm, currentConversationId }: ChatArea
                         </span>
                       </div>
                     )}
-                    <p className="text-sm text-foreground break-words">{message.text}</p>
+                    {message.text && (
+                      <p className="text-sm text-foreground break-words">{message.text}</p>
+                    )}
+                    {message.attachment?.url && (
+                      <div className="mt-2">
+                        <a
+                          href={message.attachment.url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-sm text-primary underline break-all"
+                        >
+                          {message.attachment.filename || 'Download file'}
+                        </a>
+                      </div>
+                    )}
                   </div>
                 </div>
               );
@@ -168,9 +258,23 @@ const ChatArea = ({ currentChannel, currentDm, currentConversationId }: ChatArea
       {/* Input */}
       <div className="p-4 border-t border-border">
         <form onSubmit={handleSendMessage} className="flex items-center gap-2">
-          <Button type="button" variant="ghost" size="icon" className="shrink-0">
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="shrink-0"
+            onClick={handleFileClick}
+            disabled={uploading}
+          >
             <Paperclip className="w-4 h-4" />
           </Button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            className="hidden"
+            accept="image/*,video/*"
+            onChange={handleFileChange}
+          />
           <div className="flex-1 relative">
             <Input
               value={newMessage}
@@ -192,6 +296,9 @@ const ChatArea = ({ currentChannel, currentDm, currentConversationId }: ChatArea
             <Send className="w-4 h-4" />
           </Button>
         </form>
+        {uploading && (
+          <div className="mt-2 text-xs text-muted-foreground">Uploading...</div>
+        )}
       </div>
     </div>
   );

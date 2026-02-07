@@ -203,7 +203,7 @@ io.on('connection', (socket) => {
     socket.on('message', async (data) => {
         if (socket.request.session.user) {
             const userId = socket.request.session.userId;
-            let { conversationId, message } = data;
+            let { conversationId, message, attachment } = data;
 
             try {
                 const conversation = await Conversation.findById(conversationId);
@@ -221,7 +221,8 @@ io.on('connection', (socket) => {
                 const newMessage = new Message({
                     conversationId: conversationId,
                     sender: userId,
-                    text: message
+                    text: message,
+                    attachment: attachment || undefined
                 });
                 await newMessage.save();
 

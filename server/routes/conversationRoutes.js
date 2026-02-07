@@ -3,6 +3,8 @@ const router = express.Router();
 const Conversation = require('../models/Conversation');
 const Message = require('../models/Message');
 const User = require('../models/User');
+const multer = require('multer');
+const path = require('path');
 
 // Middleware to check if user is faculty
 const isFaculty = async (req, res, next) => {
@@ -20,6 +22,29 @@ const isFaculty = async (req, res, next) => {
 };
 
 const { protect } = require('../middleware/authMiddleware');
+
+// Multer setup for chat uploads
+const uploadStorage = multer.diskStorage({
+    destination: function (_req, _file, cb) {
+        cb(null, 'uploads/');
+    },
+    filename: function (_req, file, cb) {
+        cb(null, Date.now() + path.extname(file.originalname));
+    }
+});
+
+const upload = multer({
+    storage: uploadStorage,
+    limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
+    fileFilter: (_req, file, cb) => {
+        const allowed = ['image/', 'video/'];
+        const isAllowed = allowed.some(prefix => file.mimetype.startsWith(prefix));
+        if (!isAllowed) {
+            return cb(new Error('Only image or video files are allowed'));
+        }
+        cb(null, true);
+    }
+});
 
 // GET all DM conversations for the current user
 router.get('/dms', protect, async (req, res) => {
@@ -133,6 +158,24 @@ router.post("/", async (req, res) => {
   }
 
   res.json(conversation);
+});
+
+// POST upload file for chat
+router.post('/upload', protect, upload.single('file'), async (req, res) => {
+    try {
+        if (!req.file) {
+            return res.status(400).json({ message: 'No file uploaded' });
+        }
+        const fileUrl = `/uploads/${req.file.filename}`;
+        res.json({
+            url: fileUrl,
+            filename: req.file.originalname,
+            mimetype: req.file.mimetype,
+            size: req.file.size,
+        });
+    } catch (error) {
+        res.status(500).json({ message: 'File upload failed' });
+    }
 });
 
 module.exports = router;

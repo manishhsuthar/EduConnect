@@ -5,6 +5,12 @@ const messageSchema = new mongoose.Schema(
     conversationId: { type: mongoose.Schema.Types.ObjectId, ref: "Conversation" },
     sender: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
     text: String,
+    attachment: {
+      url: String,
+      filename: String,
+      mimetype: String,
+      size: Number,
+    },
   },
   { timestamps: true }
 );
