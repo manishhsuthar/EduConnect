@@ -12,6 +12,8 @@ const cookieParser = require('cookie-parser');
 const authRoutes = require('./routes/authRoutes');
 const conversationRoutes = require('./routes/conversationRoutes');
 const adminRoutes = require('./routes/adminRoutes');
+const dashboardRoutes = require('./routes/dashboardRoutes');
+const { addOnlineUser, removeOnlineUser } = require('./utils/onlineUsers');
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: "*" } });
@@ -45,6 +47,7 @@ app.get('/test-cookies', (req, res) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/conversations', conversationRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/dashboard', dashboardRoutes);
 
 // Static files - Serve from client_old/public which contains your landing and login pages
 app.use(express.static(path.join(__dirname, '../Client/dist')));
@@ -169,6 +172,10 @@ io.use((socket, next) => {
 // UPDATED Socket.io implementation with room support
 io.on('connection', (socket) => {
     console.log('User connected:', socket.id);
+    const sessionUserId = socket.request.session?.userId;
+    if (sessionUserId) {
+        addOnlineUser(sessionUserId);
+    }
 
     // Handle joining a room/section
     socket.on('join-room', async (conversationId) => {
@@ -241,6 +248,9 @@ io.on('connection', (socket) => {
 
     socket.on('disconnect', () => {
         console.log('User disconnected:', socket.id);
+        if (sessionUserId) {
+            removeOnlineUser(sessionUserId);
+        }
     });
 });
 app.get('*', (req, res) => {
