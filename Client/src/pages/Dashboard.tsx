@@ -85,6 +85,31 @@ const Dashboard = () => {
         unreadCount: 0,
       }));
 
+      const isStudent = user?.role === 'student';
+      const userDept = (user?.department || '').toLowerCase();
+      const matchesDepartment = (channelName: string) => {
+        if (!userDept) return false;
+        const name = channelName.toLowerCase();
+        if (userDept.includes('computer')) return name.includes('computer');
+        if (userDept.includes('civil')) return name.includes('civil');
+        if (userDept.includes('electrical')) return name.includes('electrical');
+        if (userDept.includes('mechanical')) return name.includes('mechanical');
+        if (userDept.includes('electronics')) return name.includes('electronics');
+        if (userDept.includes('information')) return name.includes('information');
+        return name.includes(userDept);
+      };
+
+      const filteredChannels = isStudent && userDept
+        ? mappedChannels.filter((ch) => {
+            const lower = ch.name.toLowerCase();
+            const isGlobal =
+              lower === 'general' ||
+              lower === 'announcements' ||
+              lower.includes('help');
+            return isGlobal || matchesDepartment(ch.name);
+          })
+        : mappedChannels;
+
       const mappedDms: DirectMessage[] = dmsData.map((dm: any) => {
         const recipient = dm.participants?.find((p: any) => p._id !== user?.id);
         return {
@@ -99,11 +124,13 @@ const Dashboard = () => {
         };
       });
 
-      setChannels(mappedChannels);
+      setChannels(filteredChannels);
       setDirectMessages(mappedDms);
 
-      if (channelsData.length > 0) {
-        setCurrentChannelId(channelsData[0]._id);
+      if (filteredChannels.length > 0) {
+        setCurrentChannelId(filteredChannels[0].id);
+      } else {
+        setCurrentChannelId(null);
       }
     } catch (error) {
       console.error('Failed to fetch conversations', error);
