@@ -16,7 +16,13 @@ const dashboardRoutes = require('./routes/dashboardRoutes');
 const { addOnlineUser, removeOnlineUser } = require('./utils/onlineUsers');
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server, { cors: { origin: "*" } });
+const CLIENT_ORIGIN = process.env.CLIENT_ORIGIN || "http://localhost:5173";
+const io = new Server(server, {
+    cors: {
+        origin: CLIENT_ORIGIN,
+        credentials: true,
+    },
+});
 const User = require('./models/User');
 const Message = require('./models/Message');
 const Conversation = require('./models/Conversation');
@@ -24,7 +30,10 @@ const Conversation = require('./models/Conversation');
 // Middleware to parse JSON and URL-encoded bodies
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-app.use(cors()); 
+app.use(cors({
+    origin: CLIENT_ORIGIN,
+    credentials: true,
+})); 
 app.use(cookieParser());
 
 // Session middleware
@@ -166,7 +175,13 @@ setTimeout(createAdminAccount, 2500); // Give it a bit more time
 
 // Socket.io setup with session sharing
 io.use((socket, next) => {
-    sessionMiddleware(socket.request, {}, next);
+    sessionMiddleware(socket.request, {}, () => {
+        // Fallback for local dev when cookies aren't sent
+        if (!socket.request.session?.userId && socket.handshake.auth?.userId) {
+            socket.userId = socket.handshake.auth.userId;
+        }
+        next();
+    });
 });
 
 // UPDATED Socket.io implementation with room support
@@ -208,8 +223,8 @@ io.on('connection', (socket) => {
 
     // Handle messages with room information - UPDATED
     socket.on('message', async (data) => {
-        if (socket.request.session.user) {
-            const userId = socket.request.session.userId;
+        const userId = socket.request.session?.userId || socket.userId;
+        if (userId) {
             let { conversationId, message, attachment } = data;
 
             try {

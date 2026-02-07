@@ -46,9 +46,13 @@ const ChatArea = ({ currentChannel, currentDm, currentConversationId }: ChatArea
     if (!currentConversationId) return;
 
     // Connect to the server and authenticate
-    const socketUrl =
-      (import.meta as any).env?.VITE_SOCKET_URL || window.location.origin;
-    socketRef.current = io(socketUrl);
+    const envSocketUrl = (import.meta as any).env?.VITE_SOCKET_URL as string | undefined;
+    const isDev = (import.meta as any).env?.DEV;
+    const socketUrl = envSocketUrl || (isDev ? 'http://localhost:3000' : window.location.origin);
+    socketRef.current = io(socketUrl, {
+        withCredentials: true,
+        auth: { userId: user?.id },
+    });
     const socket = socketRef.current;
 
     socket.on('connect', () => {
@@ -70,6 +74,9 @@ const ChatArea = ({ currentChannel, currentDm, currentConversationId }: ChatArea
 
     socket.on('error', (error) => {
         console.error('Socket error:', error);
+    });
+    socket.on('connect_error', (err) => {
+        console.error('Socket connect_error:', err);
     });
 
     return () => {
