@@ -185,7 +185,7 @@ io.on('connection', (socket) => {
     
             // Send recent messages for this room when user joins
             Message.find({ conversationId: conversationId })
-                .sort({ timestamp: 1 })
+                .sort({ createdAt: 1 })
                 .limit(20)
                 .populate('sender', 'username profilePhoto role')
                 .then(messages => {

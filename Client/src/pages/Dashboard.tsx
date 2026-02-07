@@ -55,15 +55,23 @@ const Dashboard = () => {
     setIsLoading(true);
     setLoadError(null);
     try {
-      const [channelsRes, dmsRes] = await Promise.all([
+      const [channelsRes, dmsRes, statsRes] = await Promise.all([
         fetch('/api/conversations/rooms'),
-        fetch('/api/conversations/dms')
+        fetch('/api/conversations/dms'),
+        fetch('/api/dashboard/stats')
       ]);
       if (!channelsRes.ok || !dmsRes.ok) {
         throw new Error('Failed to load conversations');
       }
       const channelsData = await channelsRes.json();
       const dmsData = await dmsRes.json();
+      let onlineIds = new Set<string>();
+      if (statsRes.ok) {
+        const statsData = await statsRes.json();
+        if (Array.isArray(statsData.onlineUsers)) {
+          onlineIds = new Set(statsData.onlineUsers.map((u: any) => u._id));
+        }
+      }
       setRawChannels(channelsData);
       setRawDms(dmsData);
 
@@ -120,7 +128,7 @@ const Dashboard = () => {
           lastMessage: '',
           timestamp: new Date(),
           unreadCount: 0,
-          isOnline: false,
+          isOnline: recipient?._id ? onlineIds.has(recipient._id) : false,
         };
       });
 

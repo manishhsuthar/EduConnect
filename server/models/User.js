@@ -13,6 +13,7 @@ const userSchema = new mongoose.Schema({
   // Student-specific fields
   enrollmentNumber: String,
   semester: String,
+  year: String,
   division: String,
   college: String,
   areasOfInterest: [String],
@@ -23,6 +24,7 @@ const userSchema = new mongoose.Schema({
   employeeId: String,
   designation: String,
   subjectsTaught: [String],
+  subjects: [String],
   officeLocation: String,
 
   // Common fields

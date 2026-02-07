@@ -57,13 +57,13 @@ const ChatArea = ({ currentChannel, currentDm, currentConversationId }: ChatArea
     });
 
     socket.on('room-messages', (data: { room: string, messages: Message[] }) => {
-        if (data.room === currentConversationId) {
+        if (String(data.room) === String(currentConversationId)) {
             setMessages(data.messages);
         }
     });
 
     socket.on('message', (message: Message) => {
-        if (message.conversationId === currentConversationId) {
+        if (String(message.conversationId) === String(currentConversationId)) {
             setMessages(prev => [...prev, message]);
         }
     });

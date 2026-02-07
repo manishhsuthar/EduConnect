@@ -39,10 +39,17 @@ const ProfileSetup = () => {
     e.preventDefault();
     setIsLoading(true);
 
-    // Simulate API delay
-    await new Promise(resolve => setTimeout(resolve, 800));
+    if (!user) {
+      toast({
+        title: 'Error',
+        description: 'User not found. Please login again.',
+        variant: 'destructive',
+      });
+      setIsLoading(false);
+      return;
+    }
 
-    if (user?.role === 'student') {
+    if (user.role === 'student') {
       if (!department || !year) {
         toast({
           title: 'Error',
@@ -52,7 +59,6 @@ const ProfileSetup = () => {
         setIsLoading(false);
         return;
       }
-      updateProfile({ department, year });
     } else {
       if (!department || !subjects) {
         toast({
@@ -63,10 +69,44 @@ const ProfileSetup = () => {
         setIsLoading(false);
         return;
       }
-      updateProfile({ 
-        department, 
-        subjects: subjects.split(',').map(s => s.trim()) 
+    }
+
+    try {
+      const formData = new FormData();
+      formData.append('userId', user.id);
+      formData.append('department', department);
+      if (user.role === 'student') {
+        formData.append('year', year);
+      } else {
+        formData.append('subjects', subjects);
+      }
+
+      const res = await fetch('/api/auth/profile-setup', {
+        method: 'POST',
+        body: formData,
       });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.message || 'Failed to update profile');
+      }
+
+      if (user.role === 'student') {
+        updateProfile({ department, year });
+      } else {
+        updateProfile({ 
+          department, 
+          subjects: subjects.split(',').map(s => s.trim()) 
+        });
+      }
+    } catch (error: any) {
+      toast({
+        title: 'Error',
+        description: error?.message || 'Failed to update profile.',
+        variant: 'destructive',
+      });
+      setIsLoading(false);
+      return;
     }
 
     toast({
