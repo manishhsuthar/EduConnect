@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -43,76 +43,86 @@ const Dashboard = () => {
   const [directMessages, setDirectMessages] = useState<DirectMessage[]>([]);
   const [rawChannels, setRawChannels] = useState<any[]>([]);
   const [rawDms, setRawDms] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   // State for current view
   const [currentChannelId, setCurrentChannelId] = useState<string | null>(null);
   const [currentDmId, setCurrentDmId] = useState<string | null>(null);
   const [showInfoPanel, setShowInfoPanel] = useState(true);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  useEffect(() => {
-    const fetchConversations = async () => {
-      try {
-        const [channelsRes, dmsRes] = await Promise.all([
-          fetch('/api/conversations/rooms'),
-          fetch('/api/conversations/dms')
-        ]);
-        const channelsData = await channelsRes.json();
-        const dmsData = await dmsRes.json();
-        setRawChannels(channelsData);
-        setRawDms(dmsData);
-
-        const mapChannelIcon = (name: string): string => {
-          const lower = name.toLowerCase();
-          if (lower.includes('announcement')) return 'Megaphone';
-          if (lower.includes('help')) return 'HelpCircle';
-          if (lower.includes('computer') || lower.includes('code')) return 'Code';
-          if (lower.includes('civil')) return 'Building2';
-          if (lower.includes('electrical') || lower.includes('electronics')) return 'Zap';
-          return 'Hash';
-        };
-
-        const mappedChannels: Channel[] = channelsData.map((c: any) => ({
-          id: c._id,
-          name: c.name,
-          description: c.description || '',
-          icon: mapChannelIcon(c.name),
-          unreadCount: 0,
-        }));
-
-        const mappedDms: DirectMessage[] = dmsData.map((dm: any) => {
-          const recipient = dm.participants?.find((p: any) => p._id !== user?.id);
-          return {
-            id: dm._id,
-            recipientId: recipient?._id || '',
-            recipientName: recipient?.username || 'Unknown',
-            recipientAvatar: recipient?.profilePhoto,
-            lastMessage: '',
-            timestamp: new Date(),
-            unreadCount: 0,
-            isOnline: false,
-          };
-        });
-
-        setChannels(mappedChannels);
-        setDirectMessages(mappedDms);
-
-        if (channelsData.length > 0) {
-          setCurrentChannelId(channelsData[0]._id);
-        }
-      } catch (error) {
-        console.error('Failed to fetch conversations', error);
-        toast({
-          title: 'Error',
-          description: 'Failed to fetch conversations.',
-          variant: 'destructive',
-        });
+  const fetchConversations = useCallback(async () => {
+    setIsLoading(true);
+    setLoadError(null);
+    try {
+      const [channelsRes, dmsRes] = await Promise.all([
+        fetch('/api/conversations/rooms'),
+        fetch('/api/conversations/dms')
+      ]);
+      if (!channelsRes.ok || !dmsRes.ok) {
+        throw new Error('Failed to load conversations');
       }
-    };
+      const channelsData = await channelsRes.json();
+      const dmsData = await dmsRes.json();
+      setRawChannels(channelsData);
+      setRawDms(dmsData);
 
+      const mapChannelIcon = (name: string): string => {
+        const lower = name.toLowerCase();
+        if (lower.includes('announcement')) return 'Megaphone';
+        if (lower.includes('help')) return 'HelpCircle';
+        if (lower.includes('computer') || lower.includes('code')) return 'Code';
+        if (lower.includes('civil')) return 'Building2';
+        if (lower.includes('electrical') || lower.includes('electronics')) return 'Zap';
+        return 'Hash';
+      };
+
+      const mappedChannels: Channel[] = channelsData.map((c: any) => ({
+        id: c._id,
+        name: c.name,
+        description: c.description || '',
+        icon: mapChannelIcon(c.name),
+        unreadCount: 0,
+      }));
+
+      const mappedDms: DirectMessage[] = dmsData.map((dm: any) => {
+        const recipient = dm.participants?.find((p: any) => p._id !== user?.id);
+        return {
+          id: dm._id,
+          recipientId: recipient?._id || '',
+          recipientName: recipient?.username || 'Unknown',
+          recipientAvatar: recipient?.profilePhoto,
+          lastMessage: '',
+          timestamp: new Date(),
+          unreadCount: 0,
+          isOnline: false,
+        };
+      });
+
+      setChannels(mappedChannels);
+      setDirectMessages(mappedDms);
+
+      if (channelsData.length > 0) {
+        setCurrentChannelId(channelsData[0]._id);
+      }
+    } catch (error) {
+      console.error('Failed to fetch conversations', error);
+      setLoadError('Failed to load conversations. Please try again.');
+      toast({
+        title: 'Error',
+        description: 'Failed to fetch conversations.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  }, [toast, user?.id]);
+
+  useEffect(() => {
     if (user) {
       fetchConversations();
     }
-  }, [user, toast]);
+  }, [user, fetchConversations]);
 
   const currentChannel = rawChannels.find(c => c._id === currentChannelId) || null;
   const currentDm = rawDms.find(dm => dm._id === currentDmId) || null;
@@ -242,24 +252,43 @@ const Dashboard = () => {
       <div className="flex-1 flex min-h-0">
         {/* Desktop Sidebar */}
         <aside className="hidden lg:block w-64 border-r border-border shrink-0">
-          <Sidebar
-            channels={channels}
-            directMessages={directMessages}
-            currentChannelId={currentChannelId}
-            currentDmId={currentDmId}
-            onChannelSelect={handleChannelSelect}
-            onDmSelect={handleDmSelect}
-            onNewDm={handleNewDm}
-          />
+          {isLoading ? (
+            <div className="p-4 text-sm text-muted-foreground">Loading channels...</div>
+          ) : loadError ? (
+            <div className="p-4 text-sm text-muted-foreground">{loadError}</div>
+          ) : (
+            <Sidebar
+              channels={channels}
+              directMessages={directMessages}
+              currentChannelId={currentChannelId}
+              currentDmId={currentDmId}
+              onChannelSelect={handleChannelSelect}
+              onDmSelect={handleDmSelect}
+              onNewDm={handleNewDm}
+            />
+          )}
         </aside>
 
         {/* Chat Area */}
         <main className="flex-1 min-w-0">
-          <ChatArea
-            currentChannel={currentChannel || null}
-            currentDm={currentDm || null}
-            currentConversationId={currentChannelId || currentDmId}
-          />
+          {isLoading ? (
+            <div className="h-full flex items-center justify-center text-muted-foreground">
+              Loading messages...
+            </div>
+          ) : loadError ? (
+            <div className="h-full flex items-center justify-center text-muted-foreground">
+              {loadError}
+              <Button variant="outline" className="ml-3" onClick={fetchConversations}>
+                Retry
+              </Button>
+            </div>
+          ) : (
+            <ChatArea
+              currentChannel={currentChannel || null}
+              currentDm={currentDm || null}
+              currentConversationId={currentChannelId || currentDmId}
+            />
+          )}
         </main>
 
         {/* Info Panel (Desktop) */}
