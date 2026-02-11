@@ -6,6 +6,13 @@ const User = require('../models/User');
 const multer = require('multer');
 const path = require('path');
 
+const requireAdminOrFaculty = (req, res, next) => {
+    if (!req.user || (req.user.role !== 'admin' && req.user.role !== 'faculty')) {
+        return res.status(403).json({ message: 'Admin or faculty access required' });
+    }
+    return next();
+};
+
 // Middleware to check if user is faculty
 const isFaculty = (req, res, next) => {
     if (req.user && req.user.role === 'faculty') {
@@ -83,7 +90,7 @@ router.get('/rooms', protect, async (req, res) => {
 });
 
 // POST create a new room
-router.post('/rooms', protect, async (req, res) => {
+router.post('/rooms', protect, requireAdminOrFaculty, async (req, res) => {
     const { name, description, participants } = req.body;
     try {
         const newRoom = new Conversation({
