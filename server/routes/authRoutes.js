@@ -4,6 +4,7 @@ const express = require('express');
 const router = express.Router();
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
+const { protect } = require('../middleware/authMiddleware');
 
 
 // Import Brevo SDK
@@ -136,11 +137,11 @@ const storage = multer.diskStorage({
 const upload = multer({ storage: storage });
 
 // POST /profile-setup
-router.post('/profile-setup', upload.single('profilePhoto'), async (req, res) => {
-  const { userId, ...profileData } = req.body;
+router.post('/profile-setup', protect, upload.single('profilePhoto'), async (req, res) => {
+  const { userId: _ignoredUserId, ...profileData } = req.body;
 
   try {
-    const user = await User.findById(userId);
+    const user = await User.findById(req.user.id);
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
     }
@@ -161,8 +162,6 @@ router.post('/profile-setup', upload.single('profilePhoto'), async (req, res) =>
     res.status(500).json({ message: 'Internal server error' });
   }
 });
-
-const { protect } = require('../middleware/authMiddleware');
 
 // GET /me
 router.get('/me', protect, async (req, res) => {

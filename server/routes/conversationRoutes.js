@@ -7,18 +7,11 @@ const multer = require('multer');
 const path = require('path');
 
 // Middleware to check if user is faculty
-const isFaculty = async (req, res, next) => {
-    const userId = req.body.sender; // Assuming sender's ID is passed in the request body
-    try {
-        const user = await User.findById(userId);
-        if (user && user.role === 'faculty') {
-            next();
-        } else {
-            res.status(403).json({ message: 'Only faculty can post announcements.' });
-        }
-    } catch (error) {
-        res.status(500).json({ message: 'Error verifying user role.' });
+const isFaculty = (req, res, next) => {
+    if (req.user && req.user.role === 'faculty') {
+        return next();
     }
+    return res.status(403).json({ message: 'Only faculty can post announcements.' });
 };
 
 const { protect } = require('../middleware/authMiddleware');
@@ -65,7 +58,10 @@ router.get('/dms/:id/messages', protect, async (req, res) => {
             return res.status(404).json({ message: 'Conversation not found.' });
         }
         // Ensure the user is a participant of the conversation
-        if (!conversation.participants.includes(req.user.id)) {
+        const isParticipant = conversation.participants.some(
+            (p) => p.toString() === req.user.id.toString()
+        );
+        if (!isParticipant) {
             return res.status(403).json({ message: 'Not authorized to view this conversation.' });
         }
         const messages = await Message.find({ conversationId: req.params.id }).populate('sender', 'username profilePhoto');
@@ -76,7 +72,7 @@ router.get('/dms/:id/messages', protect, async (req, res) => {
 });
 
 // GET all rooms
-router.get('/rooms', async (req, res) => {
+router.get('/rooms', protect, async (req, res) => {
     try {
         const rooms = await Conversation.find({ type: 'group' }).sort({ name: 1 });
         console.log(`Fetched ${rooms.length} rooms:`, rooms.map(r => r.name));
@@ -87,7 +83,7 @@ router.get('/rooms', async (req, res) => {
 });
 
 // POST create a new room
-router.post('/rooms', async (req, res) => {
+router.post('/rooms', protect, async (req, res) => {
     const { name, description, participants } = req.body;
     try {
         const newRoom = new Conversation({
@@ -104,7 +100,7 @@ router.post('/rooms', async (req, res) => {
 });
 
 // GET messages for a specific room
-router.get('/rooms/:name/messages', async (req, res) => {
+router.get('/rooms/:name/messages', protect, async (req, res) => {
     try {
         const room = await Conversation.findOne({ name: req.params.name });
         if (!room) {
@@ -118,22 +114,24 @@ router.get('/rooms/:name/messages', async (req, res) => {
 });
 
 // POST a message to a room
-router.post('/rooms/:name/messages', async (req, res, next) => {
+router.post('/rooms/:name/messages', protect, async (req, res, next) => {
     if (req.params.name.toLowerCase() === 'announcements') {
-        isFaculty(req, res, next);
-    } else {
-        next();
+        return isFaculty(req, res, next);
     }
+    return next();
 }, async (req, res) => {
-    const { sender, text } = req.body;
+    const { text } = req.body;
     try {
         const room = await Conversation.findOne({ name: req.params.name });
         if (!room) {
             return res.status(404).json({ message: 'Room not found.' });
         }
+        if (!text || !text.trim()) {
+            return res.status(400).json({ message: 'Message text is required.' });
+        }
         const newMessage = new Message({
             conversationId: room._id,
-            sender,
+            sender: req.user.id,
             text
         });
         const savedMessage = await newMessage.save();
@@ -144,8 +142,15 @@ router.post('/rooms/:name/messages', async (req, res, next) => {
 });
 
 
-router.post("/", async (req, res) => {
-  const { senderId, receiverId } = req.body;
+router.post("/", protect, async (req, res) => {
+  const { receiverId } = req.body;
+  const senderId = req.user.id;
+  if (!receiverId) {
+    return res.status(400).json({ message: 'receiverId is required' });
+  }
+  if (receiverId.toString() === senderId.toString()) {
+    return res.status(400).json({ message: 'Cannot create DM with yourself' });
+  }
 
   let conversation = await Conversation.findOne({
     participants: { $all: [senderId, receiverId] },
