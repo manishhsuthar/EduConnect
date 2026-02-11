@@ -108,11 +108,40 @@ router.post("/register", async (req, res) => {
         const hashedPassword = await bcrypt.hash(password, 10);
         const newUser = new User({ username, email, password: hashedPassword, role, isApproved: role === 'student' });
         await newUser.save();
+
+        const token = jwt.sign({ userId: newUser._id }, process.env.JWT_SECRET || 'your_default_secret', {
+            expiresIn: '1h',
+        });
+
+        res.cookie('token', token, {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: 'strict',
+        });
+
+        // Replace any previous session with the newly registered user.
+        req.session.user = {
+            id: newUser._id,
+            username: newUser.username,
+            role: newUser.role,
+        };
+        req.session.userId = newUser._id;
         
         res.status(201).json({
             success: true,
             message: "User registered successfully",
-            userId: newUser._id
+            user: {
+                _id: newUser._id,
+                username: newUser.username,
+                email: newUser.email,
+                role: newUser.role,
+                isApproved: newUser.isApproved,
+                isProfileComplete: newUser.isProfileComplete,
+                department: newUser.department,
+                year: newUser.year,
+                subjects: newUser.subjects,
+                profilePhoto: newUser.profilePhoto,
+            }
         });
     } catch (error) {
         console.error('Signup error:', error);

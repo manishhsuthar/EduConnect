@@ -121,6 +121,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       if (!res.ok) {
         return { success: false, error: data.message || 'Registration failed' };
       }
+
+      if (data.user) {
+        setUser(normalizeUser(data.user));
+      }
       
       return { success: true, profileSetupRequired: true };
     } catch (error) {
