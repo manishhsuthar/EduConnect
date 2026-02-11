@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const { encryptValue, decryptValue } = require('../utils/fieldEncryption');
 
 const userSchema = new mongoose.Schema({
   username: String,
@@ -11,7 +12,11 @@ const userSchema = new mongoose.Schema({
   resetPasswordExpires: Date,
   
   // Student-specific fields
-  enrollmentNumber: String,
+  enrollmentNumber: {
+    type: String,
+    set: encryptValue,
+    get: decryptValue,
+  },
   semester: String,
   year: String,
   division: String,
@@ -21,17 +26,28 @@ const userSchema = new mongoose.Schema({
   profilePhoto: String,
 
   // Faculty-specific fields
-  employeeId: String,
+  employeeId: {
+    type: String,
+    set: encryptValue,
+    get: decryptValue,
+  },
   designation: String,
   subjectsTaught: [String],
   subjects: [String],
-  officeLocation: String,
+  officeLocation: {
+    type: String,
+    set: encryptValue,
+    get: decryptValue,
+  },
 
   // Common fields
   department: String,
   
   // Profile completion status
   isProfileComplete: { type: Boolean, default: false },
+}, {
+  toJSON: { getters: true },
+  toObject: { getters: true },
 });
 
 module.exports = mongoose.models.User || mongoose.model('User', userSchema);
