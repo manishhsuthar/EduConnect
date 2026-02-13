@@ -238,7 +238,7 @@ const Landing = () => {
             <span className="font-semibold">EduConnect Hub</span>
           </div>
           <p className="text-sm text-muted-foreground">
-            © 2024 EduConnect Hub. All rights reserved.
+            © 2026 EduConnect Hub. All rights reserved.
           </p>
         </div>
       </footer>
