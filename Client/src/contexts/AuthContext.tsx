@@ -18,7 +18,7 @@ interface AuthContextType {
   isLoading: boolean;
   login: (email: string, password: string) => Promise<{ success: boolean; error?: string; profileSetupRequired?: boolean; isAdmin?: boolean }>;
   loginWithGoogle: () => Promise<{ success: boolean; error?: string }>;
-  register: (name: string, email: string, password: string, role: 'Student' | 'Faculty') => Promise<{ success: boolean; error?: string; profileSetupRequired?: boolean }>;
+  register: (name: string, email: string, password: string, role: 'Student' | 'Faculty') => Promise<{ success: boolean; error?: string; profileSetupRequired?: boolean; requiresApproval?: boolean }>;
   logout: () => void;
   updateProfile: (profileData: Partial<User>) => void;
 }
@@ -108,7 +108,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     email: string,
     password: string,
     role: 'Student' | 'Faculty'
-  ): Promise<{ success: boolean; error?: string; profileSetupRequired?: boolean }> => {
+  ): Promise<{ success: boolean; error?: string; profileSetupRequired?: boolean; requiresApproval?: boolean }> => {
     const roleLower = role.toLowerCase();
     try {
       const res = await fetch('/api/auth/register', {
@@ -122,11 +122,17 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         return { success: false, error: data.message || 'Registration failed' };
       }
 
-      if (data.user) {
+      if (data.user && !data.requiresApproval) {
         setUser(normalizeUser(data.user));
+      } else if (data.requiresApproval) {
+        setUser(null);
       }
       
-      return { success: true, profileSetupRequired: true };
+      return {
+        success: true,
+        profileSetupRequired: !data.requiresApproval,
+        requiresApproval: Boolean(data.requiresApproval),
+      };
     } catch (error) {
       return { success: false, error: 'An unexpected error occurred.' };
     }

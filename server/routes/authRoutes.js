@@ -109,27 +109,46 @@ router.post("/register", async (req, res) => {
         const newUser = new User({ username, email, password: hashedPassword, role, isApproved: role === 'student' });
         await newUser.save();
 
-        const token = jwt.sign({ userId: newUser._id }, process.env.JWT_SECRET || 'your_default_secret', {
-            expiresIn: '1h',
-        });
+        const requiresApproval = role === 'faculty';
 
-        res.cookie('token', token, {
-            httpOnly: true,
-            secure: process.env.NODE_ENV === 'production',
-            sameSite: 'strict',
-        });
+        if (!requiresApproval) {
+            const token = jwt.sign({ userId: newUser._id }, process.env.JWT_SECRET || 'your_default_secret', {
+                expiresIn: '1h',
+            });
 
-        // Replace any previous session with the newly registered user.
-        req.session.user = {
-            id: newUser._id,
-            username: newUser.username,
-            role: newUser.role,
-        };
-        req.session.userId = newUser._id;
+            res.cookie('token', token, {
+                httpOnly: true,
+                secure: process.env.NODE_ENV === 'production',
+                sameSite: 'strict',
+            });
+
+            // Replace any previous session with the newly registered user.
+            req.session.user = {
+                id: newUser._id,
+                username: newUser.username,
+                role: newUser.role,
+            };
+            req.session.userId = newUser._id;
+        } else {
+            // Faculty must wait for admin approval before they can authenticate.
+            res.cookie('token', '', {
+                httpOnly: true,
+                secure: process.env.NODE_ENV === 'production',
+                sameSite: 'strict',
+                expires: new Date(0),
+            });
+            if (req.session) {
+                req.session.user = null;
+                req.session.userId = null;
+            }
+        }
         
         res.status(201).json({
             success: true,
-            message: "User registered successfully",
+            message: requiresApproval
+                ? "Registration successful. Your faculty account is pending admin approval."
+                : "User registered successfully",
+            requiresApproval,
             user: {
                 _id: newUser._id,
                 username: newUser.username,
@@ -217,6 +236,10 @@ router.post('/login', async (req, res) => {
 
         if (!isMatch) {
             return res.status(401).json({ message: 'Invalid credentials' });
+        }
+
+        if (user.role === 'faculty' && !user.isApproved) {
+            return res.status(403).json({ message: 'Your faculty account is pending admin approval.' });
         }
 
         const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET || 'your_default_secret', {

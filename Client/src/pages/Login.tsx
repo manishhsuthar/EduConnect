@@ -52,8 +52,18 @@ const Login = () => {
         }
         const result = await register(name, email, password, role);
         if (result.success) {
-          toast({ title: 'Account created!', description: 'Please complete your profile.' });
-          navigate('/profile-setup');
+          if (result.requiresApproval) {
+            toast({
+              title: 'Registration submitted',
+              description: 'Your faculty account is pending admin approval. Please sign in after approval.',
+            });
+            setIsLogin(true);
+            setPassword('');
+            setConfirmPassword('');
+          } else {
+            toast({ title: 'Account created!', description: 'Please complete your profile.' });
+            navigate('/profile-setup');
+          }
         } else {
           toast({ title: 'Error', description: result.error, variant: 'destructive' });
         }

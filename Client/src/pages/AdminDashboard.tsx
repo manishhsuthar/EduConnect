@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { 
   Table,
   TableBody,
@@ -9,15 +10,18 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { 
   MessageCircle, 
   Shield, 
   Users, 
   UserCheck, 
-  MessageSquare,
+  GraduationCap,
+  Briefcase,
+  Search,
+  RefreshCw,
   Trash2,
   Check,
+  X,
   LogOut
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
@@ -52,44 +56,92 @@ const AdminDashboard = () => {
   const [unapprovedFaculty, setUnapprovedFaculty] = useState<AdminUser[]>([]);
   const [messages, setMessages] = useState<AdminMessage[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [roleFilter, setRoleFilter] = useState<'all' | 'student' | 'faculty' | 'admin'>('all');
 
-  useEffect(() => {
-    const fetchAdminData = async () => {
+  const loadAdminData = async (backgroundRefresh = false) => {
+    if (backgroundRefresh) {
+      setIsRefreshing(true);
+    } else {
       setIsLoading(true);
-      try {
-        const [usersRes, pendingRes, messagesRes] = await Promise.all([
-          fetch('/api/admin/users'),
-          fetch('/api/admin/faculty/pending'),
-          fetch('/api/admin/messages'),
-        ]);
+    }
 
-        if (!usersRes.ok || !pendingRes.ok || !messagesRes.ok) {
-          throw new Error('Failed to load admin data');
-        }
+    try {
+      const [usersResult, pendingResult, messagesResult] = await Promise.allSettled([
+        fetch('/api/admin/users'),
+        fetch('/api/admin/faculty/pending'),
+        fetch('/api/admin/messages'),
+      ]);
 
-        const [usersData, pendingData, messagesData] = await Promise.all([
-          usersRes.json(),
-          pendingRes.json(),
-          messagesRes.json(),
-        ]);
+      let usersData: AdminUser[] = [];
+      let pendingData: AdminUser[] = [];
+      let messagesData: AdminMessage[] = [];
 
+      if (usersResult.status === 'fulfilled' && usersResult.value.ok) {
+        usersData = await usersResult.value.json();
         setUsers(usersData);
-        setUnapprovedFaculty(pendingData);
-        setMessages(messagesData);
-      } catch (error) {
-        console.error(error);
+      } else {
         toast({
           title: 'Error',
-          description: 'Failed to load admin data.',
+          description: 'Failed to load users list.',
           variant: 'destructive',
         });
-      } finally {
-        setIsLoading(false);
       }
-    };
 
-    fetchAdminData();
-  }, [toast]);
+      if (pendingResult.status === 'fulfilled' && pendingResult.value.ok) {
+        pendingData = await pendingResult.value.json();
+      } else {
+        pendingData = usersData.filter((u) => u.role === 'faculty' && !u.isApproved);
+      }
+      setUnapprovedFaculty(pendingData);
+
+      if (messagesResult.status === 'fulfilled' && messagesResult.value.ok) {
+        messagesData = await messagesResult.value.json();
+        setMessages(messagesData);
+      } else {
+        setMessages([]);
+      }
+    } catch (error) {
+      console.error(error);
+      toast({
+        title: 'Error',
+        description: 'Failed to load admin data.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsLoading(false);
+      setIsRefreshing(false);
+    }
+  };
+
+  useEffect(() => {
+    loadAdminData();
+  }, []);
+
+  const filteredUsers = useMemo(() => {
+    return users.filter((user) => {
+      const matchesRole = roleFilter === 'all' ? true : user.role === roleFilter;
+      const text = `${user.username} ${user.email} ${user.department || ''}`.toLowerCase();
+      const matchesSearch = searchTerm.trim()
+        ? text.includes(searchTerm.trim().toLowerCase())
+        : true;
+      return matchesRole && matchesSearch;
+    });
+  }, [users, roleFilter, searchTerm]);
+
+  const stats = useMemo(() => {
+    const students = users.filter((u) => u.role === 'student').length;
+    const faculty = users.filter((u) => u.role === 'faculty').length;
+    const pending = users.filter((u) => u.role === 'faculty' && !u.isApproved).length;
+    return {
+      total: users.length,
+      students,
+      faculty,
+      pending,
+      messages: messages.length,
+    };
+  }, [users, messages]);
 
   const handleApproveFaculty = async (facultyId: string) => {
     try {
@@ -136,12 +188,19 @@ const AdminDashboard = () => {
   };
 
   const handleDeleteUser = async (userId: string) => {
+    const userToDelete = users.find((u) => u._id === userId);
+    if (!userToDelete) return;
+
+    const confirmed = window.confirm(`Delete ${userToDelete.username} (${userToDelete.role})? This action cannot be undone.`);
+    if (!confirmed) return;
+
     try {
       const res = await fetch(`/api/admin/users/${userId}`, {
         method: 'DELETE',
       });
       if (!res.ok) throw new Error('Delete failed');
       setUsers(prev => prev.filter(u => u._id !== userId));
+      setUnapprovedFaculty(prev => prev.filter(f => f._id !== userId));
       toast({
         title: 'User Deleted',
         description: 'User has been removed.',
@@ -177,10 +236,21 @@ const AdminDashboard = () => {
             Admin
           </span>
         </div>
-        <Button variant="ghost" size="sm" onClick={handleLogout}>
-          <LogOut className="w-4 h-4 mr-2" />
-          Logout
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => loadAdminData(true)}
+            disabled={isRefreshing}
+          >
+            <RefreshCw className={`w-4 h-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
+            Refresh
+          </Button>
+          <Button variant="ghost" size="sm" onClick={handleLogout}>
+            <LogOut className="w-4 h-4 mr-2" />
+            Logout
+          </Button>
+        </div>
       </header>
 
       {/* Content */}
@@ -191,16 +261,18 @@ const AdminDashboard = () => {
           </div>
           <div>
             <h1 className="text-2xl font-bold">Admin Dashboard</h1>
-            <p className="text-muted-foreground text-sm">Manage users and content</p>
+            <p className="text-muted-foreground text-sm">Approve faculty, view all users, and manage accounts</p>
           </div>
         </div>
 
         {/* Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4 mb-8">
           {[
-            { label: 'Total Users', value: users.length, icon: Users },
-            { label: 'Pending Approvals', value: unapprovedFaculty.length, icon: UserCheck },
-            { label: 'Total Messages', value: messages.length, icon: MessageSquare },
+            { label: 'Total Users', value: stats.total, icon: Users },
+            { label: 'Students', value: stats.students, icon: GraduationCap },
+            { label: 'Faculty', value: stats.faculty, icon: Briefcase },
+            { label: 'Pending Faculty', value: stats.pending, icon: UserCheck },
+            { label: 'Messages', value: stats.messages, icon: MessageCircle },
           ].map((stat) => (
             <div key={stat.label} className="glass rounded-xl p-4">
               <div className="flex items-center gap-3">
@@ -216,176 +288,169 @@ const AdminDashboard = () => {
           ))}
         </div>
 
-        {/* Tabs */}
-        <Tabs defaultValue="approvals" className="space-y-4">
-          <TabsList>
-            <TabsTrigger value="approvals" className="gap-2">
-              <UserCheck className="w-4 h-4" />
-              Pending Approvals
-              {unapprovedFaculty.length > 0 && (
-                <span className="bg-primary text-primary-foreground text-xs px-1.5 py-0.5 rounded-full">
-                  {unapprovedFaculty.length}
-                </span>
-              )}
-            </TabsTrigger>
-            <TabsTrigger value="users" className="gap-2">
-              <Users className="w-4 h-4" />
-              All Users
-            </TabsTrigger>
-            <TabsTrigger value="messages" className="gap-2">
-              <MessageSquare className="w-4 h-4" />
-              Messages
-            </TabsTrigger>
-          </TabsList>
-
-          {/* Pending Approvals */}
-          <TabsContent value="approvals" className="glass rounded-xl p-4">
-            {isLoading ? (
-              <div className="text-center py-12 text-muted-foreground">Loading...</div>
-            ) : unapprovedFaculty.length === 0 ? (
-              <div className="text-center py-12">
-                <UserCheck className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-                <p className="text-muted-foreground">No pending approvals</p>
-              </div>
-            ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Email</TableHead>
-                    <TableHead>Department</TableHead>
-                    <TableHead>Subjects</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {unapprovedFaculty.map((faculty) => (
-                    <TableRow key={faculty._id}>
-                      <TableCell className="font-medium">{faculty.username}</TableCell>
-                      <TableCell>{faculty.email}</TableCell>
-                      <TableCell>{faculty.department || '—'}</TableCell>
-                      <TableCell>{faculty.subjectsTaught?.join(', ') || '—'}</TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex justify-end gap-2">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="text-green-500 hover:text-green-600"
-                            onClick={() => handleApproveFaculty(faculty._id)}
-                          >
-                            <Check className="w-4 h-4" />
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="text-destructive hover:text-destructive"
-                            onClick={() => handleRejectFaculty(faculty._id)}
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            )}
-          </TabsContent>
-
-          {/* All Users */}
-          <TabsContent value="users" className="glass rounded-xl p-4">
-            {isLoading ? (
-              <div className="text-center py-12 text-muted-foreground">Loading...</div>
-            ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Email</TableHead>
-                    <TableHead>Role</TableHead>
-                    <TableHead>Department</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {users.map((user) => (
-                    <TableRow key={user._id}>
-                      <TableCell className="font-medium">{user.username}</TableCell>
-                      <TableCell>{user.email}</TableCell>
-                      <TableCell>
-                        <span className={`px-2 py-0.5 rounded text-xs font-medium ${
-                          user.role === 'faculty'
-                            ? 'bg-blue-500/20 text-blue-500'
-                            : user.role === 'admin'
-                              ? 'bg-purple-500/20 text-purple-500'
-                              : 'bg-green-500/20 text-green-500'
-                        }`}>
-                          {user.role}
-                        </span>
-                      </TableCell>
-                      <TableCell>{user.department || '—'}</TableCell>
-                      <TableCell>
-                        <span className={`inline-flex items-center gap-1 text-xs ${
-                          user.isApproved ? 'text-green-500' : 'text-muted-foreground'
-                        }`}>
-                          <span className={`w-2 h-2 rounded-full ${
-                            user.isApproved ? 'bg-green-500' : 'bg-muted-foreground'
-                          }`} />
-                          {user.isApproved ? 'Approved' : 'Pending'}
-                        </span>
-                      </TableCell>
-                      <TableCell className="text-right">
+        {/* Pending Approvals */}
+        <section className="glass rounded-xl p-4 mb-6">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h2 className="text-lg font-semibold">Faculty Approval Queue</h2>
+              <p className="text-sm text-muted-foreground">
+                Pending requests: {unapprovedFaculty.length}
+              </p>
+            </div>
+          </div>
+          {isLoading ? (
+            <div className="text-center py-12 text-muted-foreground">Loading pending approvals...</div>
+          ) : unapprovedFaculty.length === 0 ? (
+            <div className="text-center py-10">
+              <UserCheck className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
+              <p className="text-muted-foreground">No pending faculty approvals</p>
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Name</TableHead>
+                  <TableHead>Email</TableHead>
+                  <TableHead>Department</TableHead>
+                  <TableHead>Subjects</TableHead>
+                  <TableHead>Requested</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {unapprovedFaculty.map((faculty) => (
+                  <TableRow key={faculty._id}>
+                    <TableCell className="font-medium">{faculty.username}</TableCell>
+                    <TableCell>{faculty.email}</TableCell>
+                    <TableCell>{faculty.department || '—'}</TableCell>
+                    <TableCell>{faculty.subjectsTaught?.join(', ') || '—'}</TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {faculty.createdAt ? format(new Date(faculty.createdAt), 'MMM d, yyyy') : '—'}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex justify-end gap-2">
                         <Button
                           size="sm"
-                          variant="ghost"
-                          className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                          onClick={() => handleDeleteUser(user._id)}
+                          variant="outline"
+                          className="text-green-600 hover:text-green-700"
+                          onClick={() => handleApproveFaculty(faculty._id)}
                         >
-                          <Trash2 className="w-4 h-4" />
+                          <Check className="w-4 h-4 mr-1" />
+                          Approve
                         </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            )}
-          </TabsContent>
-
-          {/* Messages */}
-          <TabsContent value="messages" className="glass rounded-xl p-4">
-            {isLoading ? (
-              <div className="text-center py-12 text-muted-foreground">Loading...</div>
-            ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Sender</TableHead>
-                    <TableHead>Channel</TableHead>
-                    <TableHead>Message</TableHead>
-                    <TableHead>Timestamp</TableHead>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="text-destructive hover:text-destructive"
+                          onClick={() => handleRejectFaculty(faculty._id)}
+                        >
+                          <X className="w-4 h-4 mr-1" />
+                          Reject
+                        </Button>
+                      </div>
+                    </TableCell>
                   </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {messages.map((message) => (
-                    <TableRow key={message._id}>
-                      <TableCell className="font-medium">{message.sender?.username || 'Unknown'}</TableCell>
-                      <TableCell>
-                        <span className="text-muted-foreground">
-                          #{message.conversationId?.name || 'unknown'}
-                        </span>
-                      </TableCell>
-                      <TableCell className="max-w-xs truncate">{message.text}</TableCell>
-                      <TableCell className="text-muted-foreground">
-                        {format(new Date(message.createdAt), 'MMM d, h:mm a')}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            )}
-          </TabsContent>
-        </Tabs>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </section>
+
+        {/* All Users */}
+        <section className="glass rounded-xl p-4 mb-6">
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 mb-4">
+            <div>
+              <h2 className="text-lg font-semibold">All Users</h2>
+              <p className="text-sm text-muted-foreground">
+                Showing {filteredUsers.length} of {users.length} users
+              </p>
+            </div>
+            <div className="flex flex-col sm:flex-row gap-2">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Input
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-10 w-full sm:w-72"
+                  placeholder="Search by name, email, department"
+                />
+              </div>
+              <select
+                value={roleFilter}
+                onChange={(e) => setRoleFilter(e.target.value as 'all' | 'student' | 'faculty' | 'admin')}
+                className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+              >
+                <option value="all">All Roles</option>
+                <option value="student">Students</option>
+                <option value="faculty">Faculty</option>
+                <option value="admin">Admins</option>
+              </select>
+            </div>
+          </div>
+          {isLoading ? (
+            <div className="text-center py-12 text-muted-foreground">Loading users...</div>
+          ) : filteredUsers.length === 0 ? (
+            <div className="text-center py-10 text-muted-foreground">No users found for the selected filters.</div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Name</TableHead>
+                  <TableHead>Email</TableHead>
+                  <TableHead>Role</TableHead>
+                  <TableHead>Department</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Joined</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredUsers.map((user) => (
+                  <TableRow key={user._id}>
+                    <TableCell className="font-medium">{user.username}</TableCell>
+                    <TableCell>{user.email}</TableCell>
+                    <TableCell>
+                      <span className={`px-2 py-0.5 rounded text-xs font-medium ${
+                        user.role === 'faculty'
+                          ? 'bg-blue-500/20 text-blue-600'
+                          : user.role === 'admin'
+                            ? 'bg-slate-500/20 text-slate-600'
+                            : 'bg-green-500/20 text-green-600'
+                      }`}>
+                        {user.role}
+                      </span>
+                    </TableCell>
+                    <TableCell>{user.department || '—'}</TableCell>
+                    <TableCell>
+                      <span className={`inline-flex items-center gap-1 text-xs ${
+                        user.isApproved ? 'text-green-600' : 'text-amber-600'
+                      }`}>
+                        <span className={`w-2 h-2 rounded-full ${
+                          user.isApproved ? 'bg-green-600' : 'bg-amber-600'
+                        }`} />
+                        {user.isApproved ? 'Approved' : 'Pending'}
+                      </span>
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {user.createdAt ? format(new Date(user.createdAt), 'MMM d, yyyy') : '—'}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                        onClick={() => handleDeleteUser(user._id)}
+                      >
+                        <Trash2 className="w-4 h-4 mr-1" />
+                        Delete
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </section>
       </main>
     </div>
   );
