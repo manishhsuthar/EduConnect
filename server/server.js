@@ -13,6 +13,7 @@ const authRoutes = require('./routes/authRoutes');
 const conversationRoutes = require('./routes/conversationRoutes');
 const adminRoutes = require('./routes/adminRoutes');
 const dashboardRoutes = require('./routes/dashboardRoutes');
+const notificationRoutes = require('./routes/notificationRoutes');
 const { addOnlineUser, removeOnlineUser } = require('./utils/onlineUsers');
 const app = express();
 const server = http.createServer(app);
@@ -57,6 +58,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/conversations', conversationRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/dashboard', dashboardRoutes);
+app.use('/api/notifications', notificationRoutes);
 
 // Static files - Serve from client_old/public which contains your landing and login pages
 app.use(express.static(path.join(__dirname, '../Client/dist')));

@@ -4,6 +4,7 @@ const express = require('express');
 const router = express.Router();
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
+const Notification = require('../models/Notification');
 const { protect } = require('../middleware/authMiddleware');
 
 
@@ -203,6 +204,14 @@ router.post('/profile-setup', protect, upload.single('profilePhoto'), async (req
     user.isProfileComplete = true;
 
     await user.save();
+
+    await Notification.create({
+      user: user._id,
+      title: 'Profile completed',
+      body: 'Your profile setup is complete. Welcome to EduConnect.',
+      type: 'system',
+      link: '/dashboard',
+    });
 
     res.json({ message: 'Profile setup successful' });
   } catch (err) {

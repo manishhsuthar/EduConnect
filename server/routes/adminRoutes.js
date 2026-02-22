@@ -3,6 +3,7 @@ const router = express.Router();
 const User = require('../models/User');
 const Message = require('../models/Message');
 const Conversation = require('../models/Conversation');
+const Notification = require('../models/Notification');
 const { protect } = require('../middleware/authMiddleware');
 
 const requireAdmin = (req, res, next) => {
@@ -45,6 +46,15 @@ router.post('/faculty/:id/approve', protect, requireAdmin, async (req, res) => {
     if (!updated) {
       return res.status(404).json({ message: 'User not found' });
     }
+
+    await Notification.create({
+      user: updated._id,
+      title: 'Faculty account approved',
+      body: 'Your account has been approved by admin. You can now access all faculty features.',
+      type: 'approval',
+      link: '/dashboard',
+    });
+
     res.json(updated);
   } catch (error) {
     res.status(500).json({ message: 'Failed to approve faculty' });

@@ -5,6 +5,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import Sidebar from '@/components/dashboard/Sidebar';
 import ChatArea from '@/components/dashboard/ChatArea';
 import InfoPanel from '@/components/dashboard/InfoPanel';
+import NotificationBell from '@/components/dashboard/NotificationBell';
 import { Button } from '@/components/ui/button';
 import { 
   Sheet, 
@@ -24,7 +25,6 @@ import {
   Settings, 
   LogOut, 
   User,
-  Bell,
   PanelRightClose,
   PanelRight,
   Sun,
@@ -236,9 +236,7 @@ const Dashboard = () => {
           <Button variant="ghost" size="icon" onClick={toggleTheme}>
             {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
           </Button>
-          <Button variant="ghost" size="icon">
-            <Bell className="w-4 h-4" />
-          </Button>
+          <NotificationBell />
           
           {/* Toggle Info Panel (Desktop) */}
           <Button 
