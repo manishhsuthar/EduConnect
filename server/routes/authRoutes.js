@@ -231,6 +231,74 @@ router.get('/me', protect, async (req, res) => {
     }
 });
 
+// PUT /account
+router.put('/account', protect, async (req, res) => {
+    try {
+        const { username, email, currentPassword, newPassword } = req.body;
+        const user = await User.findById(req.user.id);
+        if (!user) {
+            return res.status(404).json({ message: 'User not found' });
+        }
+
+        if (typeof username === 'string' && username.trim()) {
+            user.username = username.trim();
+        }
+
+        if (typeof email === 'string' && email.trim()) {
+            const normalizedEmail = email.trim().toLowerCase();
+            if (normalizedEmail !== user.email?.toLowerCase()) {
+                const existing = await User.findOne({ email: normalizedEmail, _id: { $ne: user._id } });
+                if (existing) {
+                    return res.status(400).json({ message: 'Email is already in use' });
+                }
+                user.email = normalizedEmail;
+            }
+        }
+
+        if (newPassword) {
+            if (!currentPassword) {
+                return res.status(400).json({ message: 'Current password is required' });
+            }
+            const isMatch = await bcrypt.compare(currentPassword, user.password);
+            if (!isMatch) {
+                return res.status(400).json({ message: 'Current password is incorrect' });
+            }
+            if (String(newPassword).length < 6) {
+                return res.status(400).json({ message: 'New password must be at least 6 characters' });
+            }
+            user.password = await bcrypt.hash(newPassword, 10);
+        }
+
+        await user.save();
+
+        await Notification.create({
+            user: user._id,
+            title: 'Account settings updated',
+            body: 'Your account information was updated successfully.',
+            type: 'system',
+            link: '/dashboard',
+        });
+
+        return res.json({
+            message: 'Account updated successfully',
+            user: {
+                _id: user._id,
+                username: user.username,
+                email: user.email,
+                role: user.role,
+                isApproved: user.isApproved,
+                isProfileComplete: user.isProfileComplete,
+                department: user.department,
+                year: user.year,
+                subjects: user.subjects,
+                profilePhoto: user.profilePhoto,
+            },
+        });
+    } catch (error) {
+        return res.status(500).json({ message: 'Failed to update account' });
+    }
+});
+
 // POST /login
 router.post('/login', async (req, res) => {
     try {

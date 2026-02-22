@@ -21,6 +21,7 @@ interface AuthContextType {
   register: (name: string, email: string, password: string, role: 'Student' | 'Faculty') => Promise<{ success: boolean; error?: string; profileSetupRequired?: boolean; requiresApproval?: boolean }>;
   logout: () => void;
   updateProfile: (profileData: Partial<User>) => void;
+  updateUser: (userData: Partial<User>) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -155,6 +156,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
+  const updateUser = (userData: Partial<User>) => {
+    setUser((prev) => (prev ? { ...prev, ...userData } : prev));
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -165,6 +170,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         register,
         logout,
         updateProfile,
+        updateUser,
       }}
     >
       {children}

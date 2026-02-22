@@ -6,6 +6,7 @@ import Sidebar from '@/components/dashboard/Sidebar';
 import ChatArea from '@/components/dashboard/ChatArea';
 import InfoPanel from '@/components/dashboard/InfoPanel';
 import NotificationBell from '@/components/dashboard/NotificationBell';
+import SettingsDialog from '@/components/dashboard/SettingsDialog';
 import { Button } from '@/components/ui/button';
 import { 
   Sheet, 
@@ -50,6 +51,7 @@ const Dashboard = () => {
   const [currentDmId, setCurrentDmId] = useState<string | null>(null);
   const [showInfoPanel, setShowInfoPanel] = useState(true);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   const fetchConversations = useCallback(async () => {
     setIsLoading(true);
@@ -267,7 +269,7 @@ const Dashboard = () => {
                 <User className="w-4 h-4 mr-2" />
                 Profile
               </DropdownMenuItem>
-              <DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setSettingsOpen(true)}>
                 <Settings className="w-4 h-4 mr-2" />
                 Settings
               </DropdownMenuItem>
@@ -282,6 +284,7 @@ const Dashboard = () => {
       </header>
 
       {/* Main Content */}
+      <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
       <div className="flex-1 flex min-h-0">
         {/* Desktop Sidebar */}
         <aside className="hidden lg:block w-64 border-r border-border shrink-0">
