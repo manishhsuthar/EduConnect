@@ -231,23 +231,24 @@ const Dashboard = () => {
   const fetchAvailableUsers = useCallback(async () => {
     setIsUsersLoading(true);
     try {
-      const response = await fetch('/api/conversations/users');
+      const response = await fetch('/api/dashboard/stats');
       if (!response.ok) {
         throw new Error('Failed to fetch users');
       }
-      const usersData = await response.json();
-      setAvailableUsers(Array.isArray(usersData) ? usersData : []);
+      const statsData = await response.json();
+      const usersData = Array.isArray(statsData?.onlineUsers) ? statsData.onlineUsers : [];
+      setAvailableUsers(usersData.filter((candidate: AvailableDmUser) => candidate._id !== user?.id));
     } catch (error) {
       console.error('Failed to fetch DM users', error);
       toast({
         title: 'Error',
-        description: 'Unable to load users for direct messages.',
+        description: 'Unable to load online users for direct messages.',
         variant: 'destructive',
       });
     } finally {
       setIsUsersLoading(false);
     }
-  }, [toast]);
+  }, [toast, user?.id]);
 
   useEffect(() => {
     if (newDmOpen) {
@@ -403,7 +404,7 @@ const Dashboard = () => {
             {isUsersLoading ? (
               <p className="text-sm text-muted-foreground py-4 text-center">Loading users...</p>
             ) : filteredAvailableUsers.length === 0 ? (
-              <p className="text-sm text-muted-foreground py-4 text-center">No users found.</p>
+              <p className="text-sm text-muted-foreground py-4 text-center">No online users found.</p>
             ) : (
               filteredAvailableUsers.map((candidate) => (
                 <button
