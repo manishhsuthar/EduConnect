@@ -11,6 +11,7 @@ interface SidebarProps {
   currentDmId: string | null;
   onChannelSelect: (channelId: string) => void;
   onDmSelect: (dmId: string) => void;
+  onNewChannel: () => void;
   onNewDm: () => void;
 }
 
@@ -30,15 +31,26 @@ const Sidebar = ({
   currentDmId,
   onChannelSelect,
   onDmSelect,
+  onNewChannel,
   onNewDm,
 }: SidebarProps) => {
   return (
     <div className="h-full flex flex-col bg-sidebar">
       {/* Channels Section */}
       <div className="p-4 border-b border-sidebar-border">
-        <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
-          Channels
-        </h3>
+        <div className="flex items-center justify-between mb-2">
+          <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+            Channels
+          </h3>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-5 w-5"
+            onClick={onNewChannel}
+          >
+            <Plus className="w-3 h-3" />
+          </Button>
+        </div>
       </div>
       
       <ScrollArea className="flex-1">

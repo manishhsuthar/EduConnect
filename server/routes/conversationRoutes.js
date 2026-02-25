@@ -6,13 +6,6 @@ const User = require('../models/User');
 const multer = require('multer');
 const path = require('path');
 
-const requireAdminOrFaculty = (req, res, next) => {
-    if (!req.user || (req.user.role !== 'admin' && req.user.role !== 'faculty')) {
-        return res.status(403).json({ message: 'Admin or faculty access required' });
-    }
-    return next();
-};
-
 // Middleware to check if user is faculty
 const isFaculty = (req, res, next) => {
     if (req.user && req.user.role === 'faculty') {
@@ -76,6 +69,11 @@ const isDepartmentRoomAllowedForFaculty = (roomName = '', department = '') => {
 const canAccessRoom = (user, room) => {
     if (!user || !room || room.type !== 'group') return false;
     if (user.role === 'admin') return true;
+    const roomParticipants = Array.isArray(room.participants) ? room.participants : [];
+    const isPrivateRoom = roomParticipants.length > 0;
+    if (isPrivateRoom) {
+        return roomParticipants.some((participantId) => participantId.toString() === user.id.toString());
+    }
     if (user.role === 'faculty') {
         return isGlobalRoom(room.name) || isDepartmentRoomAllowedForFaculty(room.name, user.department);
     }
@@ -100,6 +98,7 @@ router.get('/users', protect, async (req, res) => {
         const query = {
             _id: { $ne: req.user.id },
             isApproved: true,
+            role: { $ne: 'admin' },
         };
 
         if (search) {
@@ -155,18 +154,44 @@ router.get('/rooms', protect, async (req, res) => {
 });
 
 // POST create a new room
-router.post('/rooms', protect, requireAdminOrFaculty, async (req, res) => {
-    const { name, description, participants } = req.body;
+router.post('/rooms', protect, async (req, res) => {
+    const { name, participantIds } = req.body;
+    const roomName = String(name || '').trim();
+    const requestedParticipants = Array.isArray(participantIds) ? participantIds : [];
+
+    if (!roomName) {
+        return res.status(400).json({ message: 'Room name is required.' });
+    }
+
     try {
+        const normalizedParticipantIds = [...new Set(
+            requestedParticipants
+                .map((id) => String(id || '').trim())
+                .filter(Boolean)
+        )];
+
+        const allowedUsers = normalizedParticipantIds.length > 0
+            ? await User.find({
+                _id: { $in: normalizedParticipantIds, $ne: req.user.id },
+                role: { $ne: 'admin' },
+            }).select('_id')
+            : [];
+
+        const allowedParticipantIds = allowedUsers.map((u) => u._id.toString());
+        const participants = [...new Set([req.user.id.toString(), ...allowedParticipantIds])];
+
         const newRoom = new Conversation({
-            name,
-            description,
+            name: roomName,
+            description: '',
             participants,
             type: 'group'
         });
         const savedRoom = await newRoom.save();
         res.status(201).json(savedRoom);
     } catch (error) {
+        if (error && error.code === 11000) {
+            return res.status(409).json({ message: 'A channel with this name already exists.' });
+        }
         res.status(500).json({ message: 'Error creating room.' });
     }
 });

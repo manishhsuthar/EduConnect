@@ -70,6 +70,13 @@ const Dashboard = () => {
   const [showInfoPanel, setShowInfoPanel] = useState(true);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [newChannelOpen, setNewChannelOpen] = useState(false);
+  const [newChannelName, setNewChannelName] = useState('');
+  const [isCreatingChannel, setIsCreatingChannel] = useState(false);
+  const [isChannelUsersLoading, setIsChannelUsersLoading] = useState(false);
+  const [channelUsers, setChannelUsers] = useState<AvailableDmUser[]>([]);
+  const [channelUserSearch, setChannelUserSearch] = useState('');
+  const [selectedChannelUserIds, setSelectedChannelUserIds] = useState<string[]>([]);
   const [newDmOpen, setNewDmOpen] = useState(false);
   const [isUsersLoading, setIsUsersLoading] = useState(false);
   const [availableUsers, setAvailableUsers] = useState<AvailableDmUser[]>([]);
@@ -126,30 +133,7 @@ const Dashboard = () => {
         unreadCount: 0,
       }));
 
-      const isDepartmentScopedUser = user?.role === 'student' || user?.role === 'faculty';
-      const userDept = (user?.department || '').toLowerCase();
-      const matchesDepartment = (channelName: string) => {
-        if (!userDept) return false;
-        const name = channelName.toLowerCase();
-        if (userDept.includes('computer')) return name.includes('computer');
-        if (userDept.includes('civil')) return name.includes('civil');
-        if (userDept.includes('electrical')) return name.includes('electrical');
-        if (userDept.includes('mechanical')) return name.includes('mechanical');
-        if (userDept.includes('electronics')) return name.includes('electronics');
-        if (userDept.includes('information')) return name.includes('information');
-        return name.includes(userDept);
-      };
-
-      const filteredChannels = isDepartmentScopedUser && userDept
-        ? mappedChannels.filter((ch) => {
-            const lower = ch.name.toLowerCase();
-            const isGlobal =
-              lower === 'general' ||
-              lower === 'announcements' ||
-              lower.includes('help');
-            return isGlobal || matchesDepartment(ch.name);
-          })
-        : mappedChannels;
+      const filteredChannels = mappedChannels;
 
       const mappedDms: DirectMessage[] = dmsData.map((dm: any) => {
         const recipient = dm.participants?.find((p: any) => p._id !== user?.id);
@@ -211,6 +195,12 @@ const Dashboard = () => {
     const text = `${candidate.username} ${candidate.department || ''} ${candidate.role || ''}`.toLowerCase();
     return text.includes(search);
   });
+  const filteredChannelUsers = channelUsers.filter((candidate) => {
+    const search = channelUserSearch.trim().toLowerCase();
+    if (!search) return true;
+    const text = `${candidate.username} ${candidate.department || ''} ${candidate.role || ''}`.toLowerCase();
+    return text.includes(search);
+  });
 
   const handleChannelSelect = (channelId: string) => {
     setCurrentChannelId(channelId);
@@ -226,6 +216,10 @@ const Dashboard = () => {
 
   const handleNewDm = () => {
     setNewDmOpen(true);
+  };
+
+  const handleNewChannel = () => {
+    setNewChannelOpen(true);
   };
 
   const fetchAvailableUsers = useCallback(async () => {
@@ -258,6 +252,45 @@ const Dashboard = () => {
     }
   }, [newDmOpen, fetchAvailableUsers]);
 
+  const fetchChannelUsers = useCallback(async () => {
+    setIsChannelUsersLoading(true);
+    try {
+      const response = await fetch('/api/conversations/users');
+      if (!response.ok) {
+        throw new Error('Failed to fetch users');
+      }
+      const usersData = await response.json();
+      const sanitizedUsers = Array.isArray(usersData)
+        ? usersData.filter((candidate: AvailableDmUser) => candidate._id !== user?.id && candidate.role !== 'admin')
+        : [];
+      setChannelUsers(sanitizedUsers);
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: 'Unable to load users for channel members.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsChannelUsersLoading(false);
+    }
+  }, [toast, user?.id]);
+
+  useEffect(() => {
+    if (newChannelOpen) {
+      fetchChannelUsers();
+    } else {
+      setNewChannelName('');
+      setChannelUserSearch('');
+      setSelectedChannelUserIds([]);
+    }
+  }, [newChannelOpen, fetchChannelUsers]);
+
+  const toggleChannelUser = (userId: string) => {
+    setSelectedChannelUserIds((prev) =>
+      prev.includes(userId) ? prev.filter((id) => id !== userId) : [...prev, userId]
+    );
+  };
+
   const handleCreateDm = async (receiverId: string) => {
     setCreatingDmUserId(receiverId);
     try {
@@ -284,6 +317,61 @@ const Dashboard = () => {
       });
     } finally {
       setCreatingDmUserId(null);
+    }
+  };
+
+  const handleCreateChannel = async (event: React.FormEvent) => {
+    event.preventDefault();
+    const name = newChannelName.trim();
+
+    if (!name) {
+      toast({
+        title: 'Error',
+        description: 'Channel name is required.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (selectedChannelUserIds.length === 0) {
+      toast({
+        title: 'Error',
+        description: 'Select at least one user for this channel.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setIsCreatingChannel(true);
+    try {
+      const response = await fetch('/api/conversations/rooms', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, participantIds: selectedChannelUserIds }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(data?.message || 'Failed to create channel');
+      }
+
+      await fetchConversations();
+      setCurrentChannelId(data._id);
+      setCurrentDmId(null);
+      setNewChannelOpen(false);
+      setMobileMenuOpen(false);
+
+      toast({
+        title: 'Channel created',
+        description: `${name} is now available.`,
+      });
+    } catch (error: any) {
+      toast({
+        title: 'Error',
+        description: error?.message || 'Unable to create channel.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsCreatingChannel(false);
     }
   };
 
@@ -323,6 +411,7 @@ const Dashboard = () => {
                   currentDmId={currentDmId}
                   onChannelSelect={handleChannelSelect}
                   onDmSelect={handleDmSelect}
+                  onNewChannel={handleNewChannel}
                   onNewDm={handleNewDm}
                 />
               </div>
@@ -389,6 +478,59 @@ const Dashboard = () => {
 
       {/* Main Content */}
       <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
+      <Dialog open={newChannelOpen} onOpenChange={setNewChannelOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Create Channel</DialogTitle>
+            <DialogDescription>Enter channel name and choose users who can send messages in this room.</DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleCreateChannel} className="space-y-3">
+            <Input
+              placeholder="Channel name (e.g., Hackathon 2026)"
+              value={newChannelName}
+              onChange={(event) => setNewChannelName(event.target.value)}
+              maxLength={60}
+            />
+            <Input
+              placeholder="Search users..."
+              value={channelUserSearch}
+              onChange={(event) => setChannelUserSearch(event.target.value)}
+            />
+            <div className="max-h-56 overflow-y-auto space-y-2 pr-1 border rounded-md p-2">
+              {isChannelUsersLoading ? (
+                <p className="text-sm text-muted-foreground py-3 text-center">Loading users...</p>
+              ) : filteredChannelUsers.length === 0 ? (
+                <p className="text-sm text-muted-foreground py-3 text-center">No users found.</p>
+              ) : (
+                filteredChannelUsers.map((candidate) => {
+                  const selected = selectedChannelUserIds.includes(candidate._id);
+                  return (
+                    <button
+                      key={candidate._id}
+                      type="button"
+                      onClick={() => toggleChannelUser(candidate._id)}
+                      className={`w-full text-left px-3 py-2 rounded-lg border transition-colors ${selected ? 'border-primary bg-primary/10' : 'border-border hover:bg-accent'}`}
+                    >
+                      <p className="text-sm font-medium truncate">{candidate.username}</p>
+                      <p className="text-xs text-muted-foreground truncate">
+                        {[candidate.role, candidate.department].filter(Boolean).join(' • ') || 'User'}
+                      </p>
+                    </button>
+                  );
+                })
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Selected users: {selectedChannelUserIds.length}
+            </p>
+            <div className="flex justify-end">
+              <Button type="submit" disabled={isCreatingChannel || !newChannelName.trim() || selectedChannelUserIds.length === 0}>
+                {isCreatingChannel ? 'Creating...' : 'Create Channel'}
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
       <Dialog open={newDmOpen} onOpenChange={setNewDmOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
@@ -445,6 +587,7 @@ const Dashboard = () => {
               currentDmId={currentDmId}
               onChannelSelect={handleChannelSelect}
               onDmSelect={handleDmSelect}
+              onNewChannel={handleNewChannel}
               onNewDm={handleNewDm}
             />
           )}

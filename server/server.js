@@ -58,6 +58,11 @@ const isDepartmentRoomAllowedForFaculty = (roomName = '', department = '') => {
 const canAccessGroupRoom = (user, conversation) => {
     if (!user || !conversation || conversation.type !== 'group') return false;
     if (user.role === 'admin') return true;
+    const roomParticipants = Array.isArray(conversation.participants) ? conversation.participants : [];
+    const isPrivateRoom = roomParticipants.length > 0;
+    if (isPrivateRoom) {
+        return roomParticipants.some((participantId) => participantId.toString() === user._id.toString());
+    }
     if (user.role === 'faculty') {
         return isGlobalRoom(conversation.name) || isDepartmentRoomAllowedForFaculty(conversation.name, user.department);
     }
