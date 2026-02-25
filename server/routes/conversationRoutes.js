@@ -246,26 +246,39 @@ router.post('/rooms/:name/messages', protect, async (req, res, next) => {
 
 
 router.post("/", protect, async (req, res) => {
-  const { receiverId } = req.body;
-  const senderId = req.user.id;
-  if (!receiverId) {
-    return res.status(400).json({ message: 'receiverId is required' });
-  }
-  if (receiverId.toString() === senderId.toString()) {
-    return res.status(400).json({ message: 'Cannot create DM with yourself' });
-  }
+  try {
+    const { receiverId } = req.body;
+    const senderId = req.user.id;
+    if (!receiverId) {
+      return res.status(400).json({ message: 'receiverId is required' });
+    }
+    if (receiverId.toString() === senderId.toString()) {
+      return res.status(400).json({ message: 'Cannot create DM with yourself' });
+    }
 
-  let conversation = await Conversation.findOne({
-    participants: { $all: [senderId, receiverId] },
-    type: 'dm'
-  });
+    let conversation = await Conversation.findOne({
+      participants: { $all: [senderId, receiverId] },
+      type: 'dm'
+    });
 
-  if (!conversation) {
-    conversation = new Conversation({ participants: [senderId, receiverId], type: 'dm' });
-    await conversation.save();
+    if (!conversation) {
+      const sortedIds = [String(senderId), String(receiverId)].sort();
+      const dmName = `dm-${sortedIds[0]}-${sortedIds[1]}`;
+      conversation = new Conversation({
+        name: dmName,
+        participants: [senderId, receiverId],
+        type: 'dm'
+      });
+      await conversation.save();
+    }
+
+    res.json(conversation);
+  } catch (error) {
+    if (error && error.code === 11000) {
+      return res.status(409).json({ message: 'Direct message already exists.' });
+    }
+    return res.status(500).json({ message: 'Failed to create direct message.' });
   }
-
-  res.json(conversation);
 });
 
 // POST upload file for chat
