@@ -28,6 +28,42 @@ const User = require('./models/User');
 const Message = require('./models/Message');
 const Conversation = require('./models/Conversation');
 
+const isGlobalRoom = (roomName = '') => {
+    const lower = roomName.toLowerCase();
+    return lower === 'general' || lower === 'announcements' || lower.includes('help');
+};
+
+const isDepartmentRoomAllowedForFaculty = (roomName = '', department = '') => {
+    const dept = String(department || '').toLowerCase().trim();
+    const room = String(roomName || '').toLowerCase();
+    if (!dept) return false;
+
+    const departmentKeywords = [
+        { key: 'computer', terms: ['computer', 'code'] },
+        { key: 'civil', terms: ['civil'] },
+        { key: 'electrical', terms: ['electrical'] },
+        { key: 'mechanical', terms: ['mechanical'] },
+        { key: 'electronics', terms: ['electronics', 'communication'] },
+        { key: 'information', terms: ['information', 'it'] },
+    ];
+
+    const matchedDepartment = departmentKeywords.find((group) => dept.includes(group.key));
+    if (matchedDepartment) {
+        return matchedDepartment.terms.some((term) => room.includes(term));
+    }
+
+    return room.includes(dept);
+};
+
+const canAccessGroupRoom = (user, conversation) => {
+    if (!user || !conversation || conversation.type !== 'group') return false;
+    if (user.role === 'admin') return true;
+    if (user.role === 'faculty') {
+        return isGlobalRoom(conversation.name) || isDepartmentRoomAllowedForFaculty(conversation.name, user.department);
+    }
+    return true;
+};
+
 // Middleware to parse JSON and URL-encoded bodies
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -197,6 +233,20 @@ io.on('connection', (socket) => {
     // Handle joining a room/section
     socket.on('join-room', async (conversationId) => {
         try {
+            const userId = socket.request.session?.userId || socket.userId;
+            const [user, conversation] = await Promise.all([
+                userId ? User.findById(userId) : null,
+                Conversation.findById(conversationId),
+            ]);
+
+            if (!conversation) {
+                return socket.emit('error', { message: 'Conversation not found' });
+            }
+
+            if (conversation.type === 'group' && !canAccessGroupRoom(user, conversation)) {
+                return socket.emit('error', { message: 'Not authorized to join this room' });
+            }
+
             socket.join(conversationId.toString());
             console.log(`User ${socket.request.session?.user || 'Unknown'} joined room: ${conversationId}`);
     
@@ -235,8 +285,16 @@ io.on('connection', (socket) => {
                     return socket.emit('error', { message: 'Conversation not found' });
                 }
 
+                const user = await User.findById(userId);
+                if (!user) {
+                    return socket.emit('error', { message: 'User not found' });
+                }
+
+                if (conversation.type === 'group' && !canAccessGroupRoom(user, conversation)) {
+                    return socket.emit('error', { message: 'Not authorized to post in this room' });
+                }
+
                 if (conversation.name.toLowerCase() === 'announcements') {
-                    const user = await User.findById(userId);
                     if (!user || user.role !== 'faculty') {
                         return socket.emit('error', { message: 'Only faculty can post in Announcements' });
                     }

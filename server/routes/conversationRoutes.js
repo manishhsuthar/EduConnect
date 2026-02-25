@@ -46,6 +46,42 @@ const upload = multer({
     }
 });
 
+const isGlobalRoom = (roomName = '') => {
+    const lower = roomName.toLowerCase();
+    return lower === 'general' || lower === 'announcements' || lower.includes('help');
+};
+
+const isDepartmentRoomAllowedForFaculty = (roomName = '', department = '') => {
+    const dept = String(department || '').toLowerCase().trim();
+    const room = String(roomName || '').toLowerCase();
+    if (!dept) return false;
+
+    const departmentKeywords = [
+        { key: 'computer', terms: ['computer', 'code'] },
+        { key: 'civil', terms: ['civil'] },
+        { key: 'electrical', terms: ['electrical'] },
+        { key: 'mechanical', terms: ['mechanical'] },
+        { key: 'electronics', terms: ['electronics', 'communication'] },
+        { key: 'information', terms: ['information', 'it'] },
+    ];
+
+    const matchedDepartment = departmentKeywords.find((group) => dept.includes(group.key));
+    if (matchedDepartment) {
+        return matchedDepartment.terms.some((term) => room.includes(term));
+    }
+
+    return room.includes(dept);
+};
+
+const canAccessRoom = (user, room) => {
+    if (!user || !room || room.type !== 'group') return false;
+    if (user.role === 'admin') return true;
+    if (user.role === 'faculty') {
+        return isGlobalRoom(room.name) || isDepartmentRoomAllowedForFaculty(room.name, user.department);
+    }
+    return true;
+};
+
 // GET all DM conversations for the current user
 router.get('/dms', protect, async (req, res) => {
     try {
@@ -110,8 +146,9 @@ router.get('/dms/:id/messages', protect, async (req, res) => {
 router.get('/rooms', protect, async (req, res) => {
     try {
         const rooms = await Conversation.find({ type: 'group' }).sort({ name: 1 });
-        console.log(`Fetched ${rooms.length} rooms:`, rooms.map(r => r.name));
-        res.json(rooms);
+        const filteredRooms = rooms.filter((room) => canAccessRoom(req.user, room));
+        console.log(`Fetched ${filteredRooms.length} rooms for ${req.user.role}:`, filteredRooms.map(r => r.name));
+        res.json(filteredRooms);
     } catch (error) {
         res.status(500).json({ message: 'Error fetching rooms.' });
     }
@@ -141,6 +178,9 @@ router.get('/rooms/:name/messages', protect, async (req, res) => {
         if (!room) {
             return res.status(404).json({ message: 'Room not found.' });
         }
+        if (!canAccessRoom(req.user, room)) {
+            return res.status(403).json({ message: 'Not authorized to access this room.' });
+        }
         const messages = await Message.find({ conversationId: room._id }).populate('sender', 'username');
         res.json(messages);
     } catch (error) {
@@ -160,6 +200,9 @@ router.post('/rooms/:name/messages', protect, async (req, res, next) => {
         const room = await Conversation.findOne({ name: req.params.name });
         if (!room) {
             return res.status(404).json({ message: 'Room not found.' });
+        }
+        if (!canAccessRoom(req.user, room)) {
+            return res.status(403).json({ message: 'Not authorized to access this room.' });
         }
         if (!text || !text.trim()) {
             return res.status(400).json({ message: 'Message text is required.' });

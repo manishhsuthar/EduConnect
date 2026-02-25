@@ -126,7 +126,7 @@ const Dashboard = () => {
         unreadCount: 0,
       }));
 
-      const isStudent = user?.role === 'student';
+      const isDepartmentScopedUser = user?.role === 'student' || user?.role === 'faculty';
       const userDept = (user?.department || '').toLowerCase();
       const matchesDepartment = (channelName: string) => {
         if (!userDept) return false;
@@ -140,7 +140,7 @@ const Dashboard = () => {
         return name.includes(userDept);
       };
 
-      const filteredChannels = isStudent && userDept
+      const filteredChannels = isDepartmentScopedUser && userDept
         ? mappedChannels.filter((ch) => {
             const lower = ch.name.toLowerCase();
             const isGlobal =
