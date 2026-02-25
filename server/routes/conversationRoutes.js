@@ -57,6 +57,34 @@ router.get('/dms', protect, async (req, res) => {
     }
 });
 
+// GET users available for direct messages
+router.get('/users', protect, async (req, res) => {
+    try {
+        const search = String(req.query.search || '').trim();
+        const query = {
+            _id: { $ne: req.user.id },
+            isApproved: true,
+        };
+
+        if (search) {
+            query.$or = [
+                { username: { $regex: search, $options: 'i' } },
+                { email: { $regex: search, $options: 'i' } },
+                { department: { $regex: search, $options: 'i' } },
+            ];
+        }
+
+        const users = await User.find(query)
+            .select('username profilePhoto role department email')
+            .sort({ username: 1 })
+            .limit(100);
+
+        res.json(users);
+    } catch (error) {
+        res.status(500).json({ message: 'Error fetching users.' });
+    }
+});
+
 // GET messages for a specific DM conversation
 router.get('/dms/:id/messages', protect, async (req, res) => {
     try {

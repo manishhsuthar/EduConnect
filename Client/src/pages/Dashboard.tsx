@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -8,11 +8,19 @@ import InfoPanel from '@/components/dashboard/InfoPanel';
 import NotificationBell from '@/components/dashboard/NotificationBell';
 import SettingsDialog from '@/components/dashboard/SettingsDialog';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { 
   Sheet, 
   SheetContent, 
   SheetTrigger 
 } from '@/components/ui/sheet';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -34,6 +42,14 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import type { Channel, DirectMessage } from '@/lib/mockData';
 
+interface AvailableDmUser {
+  _id: string;
+  username: string;
+  profilePhoto?: string;
+  role?: string;
+  department?: string;
+}
+
 const Dashboard = () => {
   const { user, logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
@@ -49,9 +65,24 @@ const Dashboard = () => {
   // State for current view
   const [currentChannelId, setCurrentChannelId] = useState<string | null>(null);
   const [currentDmId, setCurrentDmId] = useState<string | null>(null);
+  const currentChannelIdRef = useRef<string | null>(null);
+  const currentDmIdRef = useRef<string | null>(null);
   const [showInfoPanel, setShowInfoPanel] = useState(true);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [newDmOpen, setNewDmOpen] = useState(false);
+  const [isUsersLoading, setIsUsersLoading] = useState(false);
+  const [availableUsers, setAvailableUsers] = useState<AvailableDmUser[]>([]);
+  const [userSearch, setUserSearch] = useState('');
+  const [creatingDmUserId, setCreatingDmUserId] = useState<string | null>(null);
+
+  useEffect(() => {
+    currentChannelIdRef.current = currentChannelId;
+  }, [currentChannelId]);
+
+  useEffect(() => {
+    currentDmIdRef.current = currentDmId;
+  }, [currentDmId]);
 
   const fetchConversations = useCallback(async () => {
     setIsLoading(true);
@@ -137,10 +168,21 @@ const Dashboard = () => {
       setChannels(filteredChannels);
       setDirectMessages(mappedDms);
 
-      if (filteredChannels.length > 0) {
+      const selectedDmId = currentDmIdRef.current;
+      const selectedChannelId = currentChannelIdRef.current;
+      const hasCurrentDm = selectedDmId && mappedDms.some((dm) => dm.id === selectedDmId);
+      const hasCurrentChannel = selectedChannelId && filteredChannels.some((channel) => channel.id === selectedChannelId);
+
+      if (hasCurrentDm) {
+        setCurrentChannelId(null);
+      } else if (hasCurrentChannel) {
+        setCurrentDmId(null);
+      } else if (filteredChannels.length > 0) {
         setCurrentChannelId(filteredChannels[0].id);
+        setCurrentDmId(null);
       } else {
         setCurrentChannelId(null);
+        setCurrentDmId(mappedDms[0]?.id || null);
       }
     } catch (error) {
       console.error('Failed to fetch conversations', error);
@@ -163,6 +205,12 @@ const Dashboard = () => {
 
   const currentChannel = rawChannels.find(c => c._id === currentChannelId) || null;
   const currentDm = rawDms.find(dm => dm._id === currentDmId) || null;
+  const filteredAvailableUsers = availableUsers.filter((candidate) => {
+    const search = userSearch.trim().toLowerCase();
+    if (!search) return true;
+    const text = `${candidate.username} ${candidate.department || ''} ${candidate.role || ''}`.toLowerCase();
+    return text.includes(search);
+  });
 
   const handleChannelSelect = (channelId: string) => {
     setCurrentChannelId(channelId);
@@ -177,10 +225,65 @@ const Dashboard = () => {
   };
 
   const handleNewDm = () => {
-    toast({
-      title: 'Coming Soon',
-      description: 'New DM functionality will be available soon.',
-    });
+    setNewDmOpen(true);
+  };
+
+  const fetchAvailableUsers = useCallback(async () => {
+    setIsUsersLoading(true);
+    try {
+      const response = await fetch('/api/conversations/users');
+      if (!response.ok) {
+        throw new Error('Failed to fetch users');
+      }
+      const usersData = await response.json();
+      setAvailableUsers(Array.isArray(usersData) ? usersData : []);
+    } catch (error) {
+      console.error('Failed to fetch DM users', error);
+      toast({
+        title: 'Error',
+        description: 'Unable to load users for direct messages.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsUsersLoading(false);
+    }
+  }, [toast]);
+
+  useEffect(() => {
+    if (newDmOpen) {
+      fetchAvailableUsers();
+    } else {
+      setUserSearch('');
+    }
+  }, [newDmOpen, fetchAvailableUsers]);
+
+  const handleCreateDm = async (receiverId: string) => {
+    setCreatingDmUserId(receiverId);
+    try {
+      const response = await fetch('/api/conversations', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ receiverId }),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data?.message || 'Failed to create direct message');
+      }
+
+      await fetchConversations();
+      setCurrentDmId(data._id);
+      setCurrentChannelId(null);
+      setNewDmOpen(false);
+      setMobileMenuOpen(false);
+    } catch (error: any) {
+      toast({
+        title: 'Error',
+        description: error?.message || 'Failed to open direct message.',
+        variant: 'destructive',
+      });
+    } finally {
+      setCreatingDmUserId(null);
+    }
   };
 
   const handleLogout = () => {
@@ -285,6 +388,47 @@ const Dashboard = () => {
 
       {/* Main Content */}
       <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
+      <Dialog open={newDmOpen} onOpenChange={setNewDmOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>New Direct Message</DialogTitle>
+            <DialogDescription>Select an existing user to start chatting.</DialogDescription>
+          </DialogHeader>
+          <Input
+            placeholder="Search users..."
+            value={userSearch}
+            onChange={(event) => setUserSearch(event.target.value)}
+          />
+          <div className="max-h-80 overflow-y-auto space-y-2 pr-1">
+            {isUsersLoading ? (
+              <p className="text-sm text-muted-foreground py-4 text-center">Loading users...</p>
+            ) : filteredAvailableUsers.length === 0 ? (
+              <p className="text-sm text-muted-foreground py-4 text-center">No users found.</p>
+            ) : (
+              filteredAvailableUsers.map((candidate) => (
+                <button
+                  key={candidate._id}
+                  onClick={() => handleCreateDm(candidate._id)}
+                  disabled={creatingDmUserId === candidate._id}
+                  className="w-full text-left px-3 py-2 rounded-lg border border-border hover:bg-accent transition-colors disabled:opacity-60"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium truncate">{candidate.username}</p>
+                      <p className="text-xs text-muted-foreground truncate">
+                        {[candidate.role, candidate.department].filter(Boolean).join(' • ') || 'User'}
+                      </p>
+                    </div>
+                    {creatingDmUserId === candidate._id && (
+                      <span className="text-xs text-muted-foreground">Opening...</span>
+                    )}
+                  </div>
+                </button>
+              ))
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
       <div className="flex-1 flex min-h-0">
         {/* Desktop Sidebar */}
         <aside className="hidden lg:block w-64 border-r border-border shrink-0">
