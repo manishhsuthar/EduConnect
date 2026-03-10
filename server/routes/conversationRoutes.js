@@ -44,7 +44,16 @@ const isGlobalRoom = (roomName = '') => {
     return lower === 'general' || lower === 'announcements' || lower.includes('help');
 };
 
-const isDepartmentRoomAllowedForFaculty = (roomName = '', department = '') => {
+const escapeRegex = (value = '') => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+const containsWord = (text = '', word = '') => {
+    const normalizedWord = String(word || '').toLowerCase().trim();
+    if (!normalizedWord) return false;
+    const re = new RegExp(`(^|[^a-z0-9])${escapeRegex(normalizedWord)}([^a-z0-9]|$)`, 'i');
+    return re.test(String(text || ''));
+};
+
+const isDepartmentRoomAllowed = (roomName = '', department = '') => {
     const dept = String(department || '').toLowerCase().trim();
     const room = String(roomName || '').toLowerCase();
     if (!dept) return false;
@@ -60,10 +69,16 @@ const isDepartmentRoomAllowedForFaculty = (roomName = '', department = '') => {
 
     const matchedDepartment = departmentKeywords.find((group) => dept.includes(group.key));
     if (matchedDepartment) {
-        return matchedDepartment.terms.some((term) => room.includes(term));
+        return matchedDepartment.terms.some((term) => containsWord(room, term));
     }
 
-    return room.includes(dept);
+    const stopWords = new Set(['department', 'dept', 'engineering', 'science', 'and', 'of']);
+    const departmentTokens = dept
+        .split(/[^a-z0-9]+/)
+        .map((t) => t.trim())
+        .filter((t) => t.length > 2 && !stopWords.has(t));
+
+    return departmentTokens.some((token) => containsWord(room, token));
 };
 
 const canAccessRoom = (user, room) => {
@@ -74,10 +89,7 @@ const canAccessRoom = (user, room) => {
     if (isPrivateRoom) {
         return roomParticipants.some((participantId) => participantId.toString() === user.id.toString());
     }
-    if (user.role === 'faculty') {
-        return isGlobalRoom(room.name) || isDepartmentRoomAllowedForFaculty(room.name, user.department);
-    }
-    return true;
+    return isGlobalRoom(room.name) || isDepartmentRoomAllowed(room.name, user.department);
 };
 
 // GET all DM conversations for the current user
