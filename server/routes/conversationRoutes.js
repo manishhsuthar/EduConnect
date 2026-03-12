@@ -29,14 +29,6 @@ const uploadStorage = multer.diskStorage({
 const upload = multer({
     storage: uploadStorage,
     limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
-    fileFilter: (_req, file, cb) => {
-        const allowed = ['image/', 'video/'];
-        const isAllowed = allowed.some(prefix => file.mimetype.startsWith(prefix));
-        if (!isAllowed) {
-            return cb(new Error('Only image or video files are allowed'));
-        }
-        cb(null, true);
-    }
 });
 
 const isGlobalRoom = (roomName = '') => {

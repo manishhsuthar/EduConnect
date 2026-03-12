@@ -1,0 +1,12 @@
+App Name: (decide later)
+
+User: Shop Owner
+
+Features:
+- Add product
+- Add stock (purchase)
+- Sell product
+- Add dealer
+- Record payment
+- View current stock
+- View pending payments

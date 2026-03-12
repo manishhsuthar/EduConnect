@@ -111,21 +111,10 @@ const ChatArea = ({ currentChannel, currentDm, currentConversationId }: ChatArea
     const file = e.target.files?.[0];
     if (!file || !currentConversationId || !socketRef.current) return;
 
-    const isImageOrVideo = file.type.startsWith('image/') || file.type.startsWith('video/');
-    if (!isImageOrVideo) {
-      toast({
-        title: 'Invalid file type',
-        description: 'Only image or video files are allowed.',
-        variant: 'destructive',
-      });
-      if (fileInputRef.current) fileInputRef.current.value = '';
-      return;
-    }
-
     if (file.size > 5 * 1024 * 1024) {
       toast({
         title: 'File too large',
-        description: 'Max file size is 5MB.',
+        description: 'Only files up to 5MB are allowed.',
         variant: 'destructive',
       });
       if (fileInputRef.current) fileInputRef.current.value = '';
@@ -279,7 +268,6 @@ const ChatArea = ({ currentChannel, currentDm, currentConversationId }: ChatArea
             ref={fileInputRef}
             type="file"
             className="hidden"
-            accept="image/*,video/*"
             onChange={handleFileChange}
           />
           <div className="flex-1 relative">
