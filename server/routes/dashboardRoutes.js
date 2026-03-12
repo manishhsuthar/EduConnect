@@ -3,7 +3,7 @@ const router = express.Router();
 const User = require('../models/User');
 const Message = require('../models/Message');
 const { protect } = require('../middleware/authMiddleware');
-const { getOnlineUserIds, getOnlineCount } = require('../utils/onlineUsers');
+const { getOnlineUserIds } = require('../utils/onlineUsers');
 
 // GET /api/dashboard/stats
 router.get('/stats', protect, async (_req, res) => {
@@ -19,15 +19,16 @@ router.get('/stats', protect, async (_req, res) => {
 
     const onlineIds = getOnlineUserIds();
     const onlineUsers = onlineIds.length
-      ? await User.find({ _id: { $in: onlineIds } }).select(
-          'username role department'
-        )
+      ? await User.find({
+          _id: { $in: onlineIds },
+          role: { $ne: 'admin' },
+        }).select('username role department')
       : [];
 
     res.json({
       totalUsers,
       messagesToday,
-      activeNow: getOnlineCount(),
+      activeNow: onlineUsers.length,
       onlineUsers,
     });
   } catch (error) {
