@@ -41,14 +41,28 @@ const ChatArea = ({ currentChannel, currentDm, currentConversationId }: ChatArea
   const { toast } = useToast();
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const socketRef = useRef<Socket | null>(null);
+  const envSocketUrl = (import.meta as any).env?.VITE_SOCKET_URL as string | undefined;
+  const isDev = (import.meta as any).env?.DEV;
+  const backendBaseUrl = envSocketUrl || (isDev ? 'http://localhost:3000' : window.location.origin);
+
+  const getAttachmentUrl = (url: string) => {
+    if (!url) return '#';
+    const isAbsolute = url.startsWith('http://') || url.startsWith('https://');
+    const resolved = isAbsolute
+      ? url
+      : (url.startsWith('/') ? `${backendBaseUrl}${url}` : `${backendBaseUrl}/${url}`);
+
+    if (resolved.includes('/uploads/') && !resolved.includes('download=1')) {
+      return `${resolved}${resolved.includes('?') ? '&' : '?'}download=1`;
+    }
+    return resolved;
+  };
 
   useEffect(() => {
     if (!currentConversationId) return;
 
     // Connect to the server and authenticate
-    const envSocketUrl = (import.meta as any).env?.VITE_SOCKET_URL as string | undefined;
-    const isDev = (import.meta as any).env?.DEV;
-    const socketUrl = envSocketUrl || (isDev ? 'http://localhost:3000' : window.location.origin);
+    const socketUrl = backendBaseUrl;
     socketRef.current = io(socketUrl, {
         withCredentials: true,
         auth: { userId: user?.id },
@@ -83,7 +97,7 @@ const ChatArea = ({ currentChannel, currentDm, currentConversationId }: ChatArea
         socket.emit('leave-room', currentConversationId);
         socket.disconnect();
     };
-}, [currentConversationId]);
+}, [currentConversationId, backendBaseUrl, user?.id]);
 
 
   // Auto-scroll to bottom
@@ -233,9 +247,8 @@ const ChatArea = ({ currentChannel, currentDm, currentConversationId }: ChatArea
                     {message.attachment?.url && (
                       <div className="mt-2">
                         <a
-                          href={message.attachment.url}
-                          target="_blank"
-                          rel="noreferrer"
+                          href={getAttachmentUrl(message.attachment.url)}
+                          download={message.attachment.filename || 'attachment'}
                           className="text-sm text-primary underline break-all"
                         >
                           {message.attachment.filename || 'Download file'}

@@ -293,7 +293,7 @@ router.post('/upload', protect, upload.single('file'), async (req, res) => {
         }
         const fileUrl = `/uploads/${req.file.filename}`;
         res.json({
-            url: fileUrl,
+            url: `${fileUrl}?download=1`,
             filename: req.file.originalname,
             mimetype: req.file.mimetype,
             size: req.file.size,

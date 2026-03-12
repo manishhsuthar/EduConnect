@@ -115,6 +115,15 @@ app.use('/api/notifications', notificationRoutes);
 
 // Static files - Serve from client_old/public which contains your landing and login pages
 app.use(express.static(path.join(__dirname, '../Client/dist')));
+app.get('/uploads/:filename', (req, res, next) => {
+    if (String(req.query.download || '') !== '1') {
+        return next();
+    }
+
+    const safeFilename = path.basename(req.params.filename || '');
+    const filePath = path.join(__dirname, 'uploads', safeFilename);
+    return res.download(filePath);
+});
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // MongoDB connection with better error handling
