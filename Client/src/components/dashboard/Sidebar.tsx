@@ -80,6 +80,9 @@ const Sidebar = ({
               </button>
             );
           })}
+          {channels.length === 0 && (
+            <p className="px-3 py-2 text-xs text-muted-foreground">No chats found.</p>
+          )}
         </div>
 
         {/* Direct Messages Section */}
@@ -136,6 +139,9 @@ const Sidebar = ({
               </button>
             );
           })}
+          {directMessages.length === 0 && (
+            <p className="px-3 py-2 text-xs text-muted-foreground">No users found.</p>
+          )}
         </div>
       </ScrollArea>
     </div>

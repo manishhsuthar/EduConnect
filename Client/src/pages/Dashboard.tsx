@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -81,6 +81,7 @@ const Dashboard = () => {
   const [isUsersLoading, setIsUsersLoading] = useState(false);
   const [availableUsers, setAvailableUsers] = useState<AvailableDmUser[]>([]);
   const [userSearch, setUserSearch] = useState('');
+  const [dashboardSearch, setDashboardSearch] = useState('');
   const [creatingDmUserId, setCreatingDmUserId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -189,6 +190,18 @@ const Dashboard = () => {
 
   const currentChannel = rawChannels.find(c => c._id === currentChannelId) || null;
   const currentDm = rawDms.find(dm => dm._id === currentDmId) || null;
+  const normalizedDashboardSearch = dashboardSearch.trim().toLowerCase();
+  const filteredSidebarChannels = useMemo(() => {
+    if (!normalizedDashboardSearch) return channels;
+    return channels.filter((channel) => {
+      const searchText = `${channel.name} ${channel.description || ''}`.toLowerCase();
+      return searchText.includes(normalizedDashboardSearch);
+    });
+  }, [channels, normalizedDashboardSearch]);
+  const filteredSidebarDms = useMemo(() => {
+    if (!normalizedDashboardSearch) return directMessages;
+    return directMessages.filter((dm) => dm.recipientName.toLowerCase().includes(normalizedDashboardSearch));
+  }, [directMessages, normalizedDashboardSearch]);
   const filteredAvailableUsers = availableUsers.filter((candidate) => {
     const search = userSearch.trim().toLowerCase();
     if (!search) return true;
@@ -404,8 +417,8 @@ const Dashboard = () => {
                   <span className="font-semibold">EduConnect Hub</span>
                 </div>
                 <Sidebar
-                  channels={channels}
-                  directMessages={directMessages}
+                  channels={filteredSidebarChannels}
+                  directMessages={filteredSidebarDms}
                   currentChannelId={currentChannelId}
                   currentDmId={currentDmId}
                   onChannelSelect={handleChannelSelect}
@@ -428,7 +441,9 @@ const Dashboard = () => {
 
         <div className="hidden lg:flex flex-1 justify-center px-6">
           <Input
-            placeholder="Search"
+            placeholder="Search chat or user"
+            value={dashboardSearch}
+            onChange={(event) => setDashboardSearch(event.target.value)}
             className="h-9 max-w-lg bg-muted/70 border-border/70"
           />
         </div>
@@ -573,8 +588,8 @@ const Dashboard = () => {
             <div className="p-4 text-sm text-muted-foreground">{loadError}</div>
           ) : (
             <Sidebar
-              channels={channels}
-              directMessages={directMessages}
+              channels={filteredSidebarChannels}
+              directMessages={filteredSidebarDms}
               currentChannelId={currentChannelId}
               currentDmId={currentDmId}
               onChannelSelect={handleChannelSelect}
