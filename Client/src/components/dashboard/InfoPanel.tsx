@@ -56,22 +56,7 @@ const InfoPanel = () => {
   ];
 
   return (
-    <div className="h-full flex flex-col bg-card border-l border-border">
-      {/* Stats */}
-      <div className="p-4 border-b border-border">
-        <h3 className="text-sm font-semibold mb-3">Statistics</h3>
-        <div className="space-y-3">
-          {statCards.map((stat) => (
-            <div key={stat.label} className="flex items-center justify-between">
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <stat.icon className="w-4 h-4" />
-                <span>{stat.label}</span>
-              </div>
-              <span className="text-sm font-medium">{stat.value}</span>
-            </div>
-          ))}
-        </div>
-      </div>
+    <div className="h-full flex flex-col">
 
       {/* Online Users */}
       <div className="flex-1 flex flex-col">

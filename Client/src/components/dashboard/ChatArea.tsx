@@ -190,7 +190,7 @@ const ChatArea = ({ currentChannel, currentDm, currentConversationId }: ChatArea
   return (
     <div className="flex flex-col h-full bg-background">
       {/* Header */}
-      <div className="px-4 py-3 border-b border-border flex items-center gap-3">
+      <div className="px-4 py-3 flex items-center gap-3">
         {!currentDm && <Hash className="w-5 h-5 text-muted-foreground" />}
         <div>
           <h2 className="font-semibold">{title}</h2>

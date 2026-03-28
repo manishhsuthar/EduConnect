@@ -386,8 +386,8 @@ const Dashboard = () => {
   return (
     <div className="h-screen flex flex-col bg-background">
       {/* Top Header */}
-      <header className="h-14 border-b border-border flex items-center justify-between px-4 shrink-0">
-        <div className="flex items-center gap-3">
+      <header className="h-14 border-b border-border flex items-center shrink-0">
+        <div className="flex items-center gap-3 px-4 lg:w-64 lg:border-r lg:border-border lg:h-full">
           {/* Mobile Menu Trigger */}
           <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
             <SheetTrigger asChild className="lg:hidden">
@@ -426,25 +426,18 @@ const Dashboard = () => {
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="hidden lg:flex flex-1 justify-center px-6">
+          <Input
+            placeholder="Search"
+            className="h-9 max-w-lg bg-muted/70 border-border/70"
+          />
+        </div>
+
+        <div className="ml-auto flex items-center gap-1 px-2 lg:px-4">
           <Button variant="ghost" size="icon" onClick={toggleTheme}>
             {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
           </Button>
           <NotificationBell />
-          
-          {/* Toggle Info Panel (Desktop) */}
-          <Button 
-            variant="ghost" 
-            size="icon" 
-            className="hidden lg:flex"
-            onClick={() => setShowInfoPanel(!showInfoPanel)}
-          >
-            {showInfoPanel ? (
-              <PanelRightClose className="w-4 h-4" />
-            ) : (
-              <PanelRight className="w-4 h-4" />
-            )}
-          </Button>
 
           {/* User Menu */}
           <DropdownMenu>
@@ -615,11 +608,21 @@ const Dashboard = () => {
         </main>
 
         {/* Info Panel (Desktop) */}
-        {showInfoPanel && (
-          <aside className="hidden lg:block w-64 shrink-0">
-            <InfoPanel />
-          </aside>
-        )}
+        <div className={`relative hidden lg:block shrink-0 border-l border-border ${showInfoPanel ? 'w-64' : 'w-0'}`}>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="absolute -left-3 top-8 z-10 h-6 w-6 rounded-full border border-border bg-background"
+            onClick={() => setShowInfoPanel(!showInfoPanel)}
+          >
+            {showInfoPanel ? (
+              <PanelRightClose className="w-3.5 h-3.5" />
+            ) : (
+              <PanelRight className="w-3.5 h-3.5" />
+            )}
+          </Button>
+          {showInfoPanel && <InfoPanel />}
+        </div>
       </div>
     </div>
   );
