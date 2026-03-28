@@ -446,7 +446,7 @@ const Dashboard = () => {
           <div className="flex items-center gap-2">
             <div className="w-15 h-11 rounded-lg bg-black flex items-center justify-center">
               <img src="./public/icon.png" alt="Logo" className="w-10 h-10 text-primary-" />
-              <span className="font-semibold hidden sm:block">duConnect</span>
+              <span className="font-semibold hidden sm:block text-white">duConnect</span>
             </div>
           </div>
         </div>
