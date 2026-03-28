@@ -226,30 +226,32 @@ const AdminDashboard = () => {
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
-      <header className="h-14 border-b border-border flex items-center justify-between px-6">
-        <div className="flex items-center gap-3">
+      <header className="border-b border-border px-4 py-3 sm:px-6">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-3 min-w-0">
           <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
             <MessageCircle className="w-5 h-5 text-primary-foreground" />
           </div>
-          <span className="font-semibold">EduConnect Hub</span>
+            <span className="font-semibold truncate">EduConnect Hub</span>
           <span className="px-2 py-0.5 rounded bg-primary/20 text-primary text-xs font-medium">
             Admin
           </span>
         </div>
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => loadAdminData(true)}
-            disabled={isRefreshing}
-          >
-            <RefreshCw className={`w-4 h-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
-            Refresh
-          </Button>
-          <Button variant="ghost" size="sm" onClick={handleLogout}>
-            <LogOut className="w-4 h-4 mr-2" />
-            Logout
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => loadAdminData(true)}
+              disabled={isRefreshing}
+            >
+              <RefreshCw className={`w-4 h-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
+              Refresh
+            </Button>
+            <Button variant="ghost" size="sm" onClick={handleLogout}>
+              <LogOut className="w-4 h-4 mr-2" />
+              Logout
+            </Button>
+          </div>
         </div>
       </header>
 
@@ -306,7 +308,8 @@ const AdminDashboard = () => {
               <p className="text-muted-foreground">No pending faculty approvals</p>
             </div>
           ) : (
-            <Table>
+            <div className="overflow-x-auto">
+              <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead>Name</TableHead>
@@ -352,7 +355,8 @@ const AdminDashboard = () => {
                   </TableRow>
                 ))}
               </TableBody>
-            </Table>
+              </Table>
+            </div>
           )}
         </section>
 
@@ -392,7 +396,8 @@ const AdminDashboard = () => {
           ) : filteredUsers.length === 0 ? (
             <div className="text-center py-10 text-muted-foreground">No users found for the selected filters.</div>
           ) : (
-            <Table>
+            <div className="overflow-x-auto">
+              <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead>Name</TableHead>
@@ -448,7 +453,8 @@ const AdminDashboard = () => {
                   </TableRow>
                 ))}
               </TableBody>
-            </Table>
+              </Table>
+            </div>
           )}
         </section>
       </main>

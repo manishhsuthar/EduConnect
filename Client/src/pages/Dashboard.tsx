@@ -409,10 +409,10 @@ const Dashboard = () => {
   };
 
   return (
-    <div className="h-screen flex flex-col bg-background">
+    <div className="h-svh min-h-svh flex flex-col bg-background">
       {/* Top Header */}
       <header className="h-14 border-b border-border flex items-center shrink-0">
-        <div className="flex items-center gap-3 px-4 lg:w-64 lg:border-r lg:border-border lg:h-full">
+        <div className="flex items-center gap-2 px-3 lg:px-4 lg:w-64 lg:border-r lg:border-border lg:h-full min-w-0">
           {/* Mobile Menu Trigger */}
           <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
             <SheetTrigger asChild className="lg:hidden">
@@ -420,7 +420,7 @@ const Dashboard = () => {
                 <Menu className="w-5 h-5" />
               </Button>
             </SheetTrigger>
-            <SheetContent side="left" className="w-72 p-0">
+            <SheetContent side="left" className="w-[85vw] max-w-72 p-0">
               <div className="h-full">
                 <div className="p-4 border-b border-border flex items-center gap-2">
                   <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
@@ -443,10 +443,10 @@ const Dashboard = () => {
           </Sheet>
 
           {/* Logo */}
-          <div className="flex items-center gap-2">
-            <div className="w-15 h-11 rounded-lg bg-black flex items-center justify-center">
-              <img src="./public/icon.png" alt="Logo" className="w-10 h-10 text-primary-" />
-              <span className="font-semibold hidden sm:block text-white">duConnect</span>
+          <div className="flex items-center gap-2 min-w-0">
+            <div className="h-10 rounded-lg bg-black px-2.5 flex items-center justify-center gap-1.5">
+              <img src="/icon.png" alt="Logo" className="w-7 h-7 shrink-0" />
+              <span className="font-semibold hidden sm:block text-white truncate">EduConnect</span>
             </div>
           </div>
         </div>
@@ -520,7 +520,7 @@ const Dashboard = () => {
           </Popover>
         </div>
 
-        <div className="ml-auto flex items-center gap-1 px-2 lg:px-4">
+        <div className="ml-auto flex items-center gap-1 px-2 lg:px-4 shrink-0">
           <Button variant="ghost" size="icon" onClick={toggleTheme}>
             {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
           </Button>

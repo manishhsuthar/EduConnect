@@ -78,32 +78,32 @@ const Landing = () => {
     <div className="min-h-screen bg-background">
       {/* Navigation */}
       <nav className="fixed top-0 left-0 right-0 z-50 glass">
-        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-2">
+        <div className="container mx-auto px-4 py-3 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 min-w-0">
             <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
               <MessageCircle className="w-5 h-5 text-primary-foreground" />
             </div>
-            <span className="text-xl font-bold">EduConnect Hub</span>
+            <span className="text-base sm:text-xl font-bold truncate">EduConnect Hub</span>
           </div>
-          <div className="flex items-center gap-4">
-            <Link to="/admin-login" className="text-muted-foreground hover:text-foreground text-sm">
+          <div className="flex items-center gap-1.5 sm:gap-4">
+            <Link to="/admin-login" className="hidden sm:inline text-muted-foreground hover:text-foreground text-sm">
               Admin
             </Link>
             <Button variant="ghost" size="icon" onClick={toggleTheme}>
               {theme === 'dark' ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
             </Button>
             <Link to="/login">
-              <Button variant="outline" size="sm">Sign In</Button>
+              <Button variant="outline" size="sm" className="px-3">Sign In</Button>
             </Link>
-            <Link to="/login">
-              <Button size="sm" className="glow-sm">Get Started</Button>
+            <Link to="/login" className="hidden sm:inline">
+              <Button size="sm" className="glow-sm px-3">Get Started</Button>
             </Link>
           </div>
         </div>
       </nav>
 
       {/* Hero Section */}
-      <section className="pt-32 pb-20 px-4">
+      <section className="pt-28 sm:pt-32 pb-16 sm:pb-20 px-4">
         <div className="container mx-auto text-center">
           <div className="animate-fade-in">
             <h1 className="text-4xl md:text-6xl font-bold mb-6">
@@ -128,7 +128,7 @@ const Landing = () => {
           </div>
 
           {/* Stats */}
-          <div className="grid grid-cols-3 gap-8 max-w-xl mx-auto animate-fade-in" style={{ animationDelay: '0.2s' }}>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-8 max-w-xl mx-auto animate-fade-in" style={{ animationDelay: '0.2s' }}>
             {[
               { value: '5K+', label: 'Active Students' },
               { value: '50+', label: 'Departments' },
