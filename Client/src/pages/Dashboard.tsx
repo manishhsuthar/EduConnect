@@ -9,6 +9,7 @@ import NotificationBell from '@/components/dashboard/NotificationBell';
 import SettingsDialog from '@/components/dashboard/SettingsDialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { 
   Sheet, 
   SheetContent, 
@@ -82,6 +83,7 @@ const Dashboard = () => {
   const [availableUsers, setAvailableUsers] = useState<AvailableDmUser[]>([]);
   const [userSearch, setUserSearch] = useState('');
   const [dashboardSearch, setDashboardSearch] = useState('');
+  const [searchDropdownOpen, setSearchDropdownOpen] = useState(false);
   const [creatingDmUserId, setCreatingDmUserId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -191,14 +193,14 @@ const Dashboard = () => {
   const currentChannel = rawChannels.find(c => c._id === currentChannelId) || null;
   const currentDm = rawDms.find(dm => dm._id === currentDmId) || null;
   const normalizedDashboardSearch = dashboardSearch.trim().toLowerCase();
-  const filteredSidebarChannels = useMemo(() => {
+  const filteredSearchChannels = useMemo(() => {
     if (!normalizedDashboardSearch) return channels;
     return channels.filter((channel) => {
       const searchText = `${channel.name} ${channel.description || ''}`.toLowerCase();
       return searchText.includes(normalizedDashboardSearch);
     });
   }, [channels, normalizedDashboardSearch]);
-  const filteredSidebarDms = useMemo(() => {
+  const filteredSearchDms = useMemo(() => {
     if (!normalizedDashboardSearch) return directMessages;
     return directMessages.filter((dm) => dm.recipientName.toLowerCase().includes(normalizedDashboardSearch));
   }, [directMessages, normalizedDashboardSearch]);
@@ -225,6 +227,16 @@ const Dashboard = () => {
     setCurrentDmId(dmId);
     setCurrentChannelId(null);
     setMobileMenuOpen(false);
+  };
+  
+  const handleSearchChannelSelect = (channelId: string) => {
+    handleChannelSelect(channelId);
+    setSearchDropdownOpen(false);
+  };
+
+  const handleSearchDmSelect = (dmId: string) => {
+    handleDmSelect(dmId);
+    setSearchDropdownOpen(false);
   };
 
   const handleNewDm = () => {
@@ -417,8 +429,8 @@ const Dashboard = () => {
                   <span className="font-semibold">EduConnect Hub</span>
                 </div>
                 <Sidebar
-                  channels={filteredSidebarChannels}
-                  directMessages={filteredSidebarDms}
+                  channels={channels}
+                  directMessages={directMessages}
                   currentChannelId={currentChannelId}
                   currentDmId={currentDmId}
                   onChannelSelect={handleChannelSelect}
@@ -440,12 +452,72 @@ const Dashboard = () => {
         </div>
 
         <div className="hidden lg:flex flex-1 justify-center px-6">
-          <Input
-            placeholder="Search chat or user"
-            value={dashboardSearch}
-            onChange={(event) => setDashboardSearch(event.target.value)}
-            className="h-9 max-w-lg bg-muted/70 border-border/70"
-          />
+          <Popover open={searchDropdownOpen} onOpenChange={setSearchDropdownOpen}>
+            <PopoverTrigger asChild>
+              <div className="w-full max-w-lg">
+                <Input
+                  placeholder="Search chat or user"
+                  value={dashboardSearch}
+                  onFocus={() => setSearchDropdownOpen(true)}
+                  onClick={() => setSearchDropdownOpen(true)}
+                  onChange={(event) => {
+                    setDashboardSearch(event.target.value);
+                    setSearchDropdownOpen(true);
+                  }}
+                  className="h-9 bg-muted/70 border-border/70"
+                />
+              </div>
+            </PopoverTrigger>
+            <PopoverContent align="center" sideOffset={8} className="w-[--radix-popover-trigger-width] p-2">
+              {normalizedDashboardSearch ? (
+                filteredSearchChannels.length === 0 && filteredSearchDms.length === 0 ? (
+                  <p className="px-2 py-3 text-xs text-muted-foreground">No results found.</p>
+                ) : (
+                  <div className="max-h-72 overflow-y-auto">
+                    {filteredSearchChannels.length > 0 && (
+                      <div className="mb-2">
+                        <p className="px-2 py-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                          Chats
+                        </p>
+                        <div className="space-y-1">
+                          {filteredSearchChannels.map((channel) => (
+                            <button
+                              key={channel.id}
+                              onClick={() => handleSearchChannelSelect(channel.id)}
+                              className="w-full rounded-md px-2 py-2 text-left text-sm hover:bg-accent transition-colors"
+                            >
+                              {channel.name}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {filteredSearchDms.length > 0 && (
+                      <div>
+                        <p className="px-2 py-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                          Users
+                        </p>
+                        <div className="space-y-1">
+                          {filteredSearchDms.map((dm) => (
+                            <button
+                              key={dm.id}
+                              onClick={() => handleSearchDmSelect(dm.id)}
+                              className="w-full rounded-md px-2 py-2 text-left text-sm hover:bg-accent transition-colors"
+                            >
+                              {dm.recipientName}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )
+              ) : (
+                <p className="px-2 py-3 text-xs text-muted-foreground">Type to search chats or users.</p>
+              )}
+            </PopoverContent>
+          </Popover>
         </div>
 
         <div className="ml-auto flex items-center gap-1 px-2 lg:px-4">
@@ -588,8 +660,8 @@ const Dashboard = () => {
             <div className="p-4 text-sm text-muted-foreground">{loadError}</div>
           ) : (
             <Sidebar
-              channels={filteredSidebarChannels}
-              directMessages={filteredSidebarDms}
+              channels={channels}
+              directMessages={directMessages}
               currentChannelId={currentChannelId}
               currentDmId={currentDmId}
               onChannelSelect={handleChannelSelect}
