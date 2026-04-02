@@ -3,8 +3,11 @@ const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
 const bcrypt = require('bcrypt');
+const crypto = require('crypto');
 const cors = require('cors');
 const session = require('express-session');
+const passport = require('passport');
+const GoogleStrategy = require('passport-google-oauth20').Strategy;
 const path = require('path');
 const cookieParser = require('cookie-parser');
 const prisma = require('./utils/prisma');
@@ -100,6 +103,79 @@ const sessionMiddleware = session({
   cookie: { secure: false, httpOnly: true, sameSite: 'Lax' },
 });
 app.use(sessionMiddleware);
+app.use(passport.initialize());
+app.use(passport.session());
+
+passport.serializeUser((user, done) => {
+  done(null, String(user.id));
+});
+
+passport.deserializeUser(async (id, done) => {
+  try {
+    const userId = toIntId(id);
+    if (!userId) return done(null, false);
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user) return done(null, false);
+    return done(null, toPublicUser(user));
+  } catch (error) {
+    return done(error, false);
+  }
+});
+
+if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET && process.env.GOOGLE_CALLBACK_URL) {
+  passport.use(
+    new GoogleStrategy(
+      {
+        clientID: process.env.GOOGLE_CLIENT_ID,
+        clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+        callbackURL: process.env.GOOGLE_CALLBACK_URL,
+      },
+      async (_accessToken, _refreshToken, profile, done) => {
+        try {
+          const email = String(profile?.emails?.[0]?.value || '').trim().toLowerCase();
+          if (!email) {
+            return done(new Error('Google account email not available'));
+          }
+
+          const displayName = String(profile?.displayName || email.split('@')[0] || 'User').trim();
+          const googlePhoto = String(profile?.photos?.[0]?.value || '').trim() || null;
+          const existing = await prisma.user.findUnique({ where: { email } });
+
+          if (existing) {
+            const updateData = {};
+            if (!existing.profilePhoto && googlePhoto) updateData.profilePhoto = googlePhoto;
+            if (!existing.username && displayName) updateData.username = displayName;
+
+            const user =
+              Object.keys(updateData).length > 0
+                ? await prisma.user.update({ where: { id: existing.id }, data: updateData })
+                : existing;
+            return done(null, { id: String(user.id) });
+          }
+
+          const randomPassword = crypto.randomBytes(24).toString('hex');
+          const hashedPassword = await bcrypt.hash(randomPassword, 10);
+          const created = await prisma.user.create({
+            data: {
+              username: displayName,
+              email,
+              password: hashedPassword,
+              role: 'student',
+              isApproved: true,
+              profilePhoto: googlePhoto,
+            },
+          });
+
+          return done(null, { id: String(created.id) });
+        } catch (error) {
+          return done(error);
+        }
+      }
+    )
+  );
+} else {
+  console.warn('Google OAuth is not fully configured. Missing GOOGLE_CLIENT_ID/SECRET/CALLBACK_URL.');
+}
 
 app.get('/test-cookies', (req, res) => {
   res.json({ cookies: req.cookies });

@@ -98,10 +98,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const loginWithGoogle = async (): Promise<{ success: boolean; error?: string }> => {
-    // This is a placeholder. Full Google OAuth implementation is complex
-    // and requires a backend setup with passport.js or similar.
-    console.warn("loginWithGoogle is not implemented. This requires backend OAuth setup.");
-    return { success: false, error: "Google login is not configured." };
+    window.location.href = '/api/auth/google';
+    return { success: true };
   };
 
   const register = async (

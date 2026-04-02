@@ -3,12 +3,14 @@ const bcrypt = require('bcrypt');
 const express = require('express');
 const router = express.Router();
 const jwt = require('jsonwebtoken');
+const passport = require('passport');
 const multer = require('multer');
 const path = require('path');
 const SibApiV3Sdk = require('sib-api-v3-sdk');
 const prisma = require('../utils/prisma');
 const { toIntId, toPublicUser } = require('../utils/dbTransform');
 const { protect } = require('../middleware/authMiddleware');
+const CLIENT_ORIGIN = process.env.CLIENT_ORIGIN || 'http://localhost:5173';
 
 const defaultClient = SibApiV3Sdk.ApiClient.instance;
 const apiKey = defaultClient.authentications['api-key'];
@@ -59,6 +61,60 @@ const storage = multer.diskStorage({
   },
 });
 const upload = multer({ storage });
+
+router.get(
+  '/google',
+  passport.authenticate('google', {
+    scope: ['profile', 'email'],
+    prompt: 'select_account',
+  })
+);
+
+router.get(
+  '/google/callback',
+  passport.authenticate('google', {
+    failureRedirect: `${CLIENT_ORIGIN}/login?error=google_auth_failed`,
+  }),
+  async (req, res) => {
+    try {
+      const userId = toIntId(req.user?.id || req.user?._id);
+      if (!userId) {
+        return res.redirect(`${CLIENT_ORIGIN}/login?error=google_auth_failed`);
+      }
+
+      const user = await prisma.user.findUnique({ where: { id: userId } });
+      if (!user) {
+        return res.redirect(`${CLIENT_ORIGIN}/login?error=google_auth_failed`);
+      }
+
+      if (user.role === 'faculty' && !user.isApproved) {
+        return res.redirect(`${CLIENT_ORIGIN}/login?error=faculty_pending_approval`);
+      }
+
+      const token = jwt.sign({ userId: String(user.id) }, process.env.JWT_SECRET || 'your_default_secret', {
+        expiresIn: '1h',
+      });
+
+      res.cookie('token', token, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'strict',
+      });
+
+      req.session.user = {
+        id: String(user.id),
+        username: user.username,
+        role: user.role,
+      };
+      req.session.userId = String(user.id);
+
+      const redirectPath = user.isProfileComplete ? '/dashboard' : '/profile-setup';
+      return res.redirect(`${CLIENT_ORIGIN}${redirectPath}`);
+    } catch (error) {
+      return res.redirect(`${CLIENT_ORIGIN}/login?error=google_auth_failed`);
+    }
+  }
+);
 
 router.post('/forgot-password', async (req, res) => {
   const { email } = req.body;
@@ -320,8 +376,13 @@ router.post('/logout', (req, res) => {
     httpOnly: true,
     expires: new Date(0),
   });
-  req.session.destroy();
-  res.json({ message: 'Logged out successfully' });
+  req.session.destroy(() => {
+    if (typeof req.logout === 'function') {
+      req.logout(() => res.json({ message: 'Logged out successfully' }));
+    } else {
+      res.json({ message: 'Logged out successfully' });
+    }
+  });
 });
 
 module.exports = router;
