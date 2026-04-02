@@ -1,9 +1,7 @@
 const express = require('express');
 const router = express.Router();
-const User = require('../models/User');
-const Message = require('../models/Message');
-const Conversation = require('../models/Conversation');
-const Notification = require('../models/Notification');
+const prisma = require('../utils/prisma');
+const { toIntId, toPublicUser, toPublicMessage } = require('../utils/dbTransform');
 const { protect } = require('../middleware/authMiddleware');
 
 const requireAdmin = (req, res, next) => {
@@ -13,78 +11,109 @@ const requireAdmin = (req, res, next) => {
   next();
 };
 
-// GET /api/admin/users
-router.get('/users', protect, requireAdmin, async (req, res) => {
+router.get('/users', protect, requireAdmin, async (_req, res) => {
   try {
-    const users = await User.find({}).select('-password').sort({ createdAt: -1 });
-    res.json(users);
+    const users = await prisma.user.findMany({
+      orderBy: { createdAt: 'desc' },
+    });
+    return res.json(users.map((u) => toPublicUser(u)));
   } catch (error) {
-    res.status(500).json({ message: 'Failed to fetch users' });
+    return res.status(500).json({ message: 'Failed to fetch users' });
   }
 });
 
-// GET /api/admin/faculty/pending
-router.get('/faculty/pending', protect, requireAdmin, async (req, res) => {
+router.get('/faculty/pending', protect, requireAdmin, async (_req, res) => {
   try {
-    const pending = await User.find({ role: 'faculty', isApproved: false })
-      .select('-password')
-      .sort({ createdAt: -1 });
-    res.json(pending);
+    const pending = await prisma.user.findMany({
+      where: { role: 'faculty', isApproved: false },
+      orderBy: { createdAt: 'desc' },
+    });
+    return res.json(pending.map((u) => toPublicUser(u)));
   } catch (error) {
-    res.status(500).json({ message: 'Failed to fetch pending faculty' });
+    return res.status(500).json({ message: 'Failed to fetch pending faculty' });
   }
 });
 
-// POST /api/admin/faculty/:id/approve
 router.post('/faculty/:id/approve', protect, requireAdmin, async (req, res) => {
   try {
-    const updated = await User.findByIdAndUpdate(
-      req.params.id,
-      { isApproved: true },
-      { new: true }
-    ).select('-password');
-    if (!updated) {
+    const userId = toIntId(req.params.id);
+    const existing = await prisma.user.findUnique({ where: { id: userId } });
+    if (!existing) {
       return res.status(404).json({ message: 'User not found' });
     }
 
-    await Notification.create({
-      user: updated._id,
-      title: 'Faculty account approved',
-      body: 'Your account has been approved by admin. You can now access all faculty features.',
-      type: 'approval',
-      link: '/dashboard',
+    const updated = await prisma.user.update({
+      where: { id: userId },
+      data: { isApproved: true },
     });
 
-    res.json(updated);
+    await prisma.notification.create({
+      data: {
+        userId: updated.id,
+        title: 'Faculty account approved',
+        body: 'Your account has been approved by admin. You can now access all faculty features.',
+        type: 'approval',
+        link: '/dashboard',
+      },
+    });
+
+    return res.json(toPublicUser(updated));
   } catch (error) {
-    res.status(500).json({ message: 'Failed to approve faculty' });
+    return res.status(500).json({ message: 'Failed to approve faculty' });
   }
 });
 
-// DELETE /api/admin/users/:id
 router.delete('/users/:id', protect, requireAdmin, async (req, res) => {
   try {
-    const deleted = await User.findByIdAndDelete(req.params.id).select('-password');
-    if (!deleted) {
+    const userId = toIntId(req.params.id);
+    const existing = await prisma.user.findUnique({ where: { id: userId } });
+    if (!existing) {
       return res.status(404).json({ message: 'User not found' });
     }
-    res.json({ message: 'User deleted', user: deleted });
+
+    await prisma.$transaction([
+      prisma.notification.deleteMany({ where: { userId } }),
+      prisma.message.deleteMany({ where: { senderId: userId } }),
+      prisma.conversationParticipant.deleteMany({ where: { userId } }),
+      prisma.user.delete({ where: { id: userId } }),
+    ]);
+
+    return res.json({ message: 'User deleted', user: toPublicUser(existing) });
   } catch (error) {
-    res.status(500).json({ message: 'Failed to delete user' });
+    return res.status(500).json({ message: 'Failed to delete user' });
   }
 });
 
-// GET /api/admin/messages
-router.get('/messages', protect, requireAdmin, async (req, res) => {
+router.get('/messages', protect, requireAdmin, async (_req, res) => {
   try {
-    const messages = await Message.find({})
-      .sort({ createdAt: -1 })
-      .limit(200)
-      .populate('sender', 'username email role')
-      .populate('conversationId', 'name type');
-    res.json(messages);
+    const messages = await prisma.message.findMany({
+      orderBy: { createdAt: 'desc' },
+      take: 200,
+      include: {
+        sender: true,
+        conversation: {
+          select: {
+            name: true,
+            type: true,
+          },
+        },
+      },
+    });
+
+    const payload = messages.map((message) => {
+      const mapped = toPublicMessage({
+        ...message,
+        sender: toPublicUser(message.sender),
+      });
+      return {
+        ...mapped,
+        conversationId: message.conversation,
+      };
+    });
+
+    return res.json(payload);
   } catch (error) {
-    res.status(500).json({ message: 'Failed to fetch messages' });
+    return res.status(500).json({ message: 'Failed to fetch messages' });
   }
 });
 

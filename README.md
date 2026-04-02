@@ -1,6 +1,6 @@
 # EduConnect Hub
 
-![License](https://img.shields.io/badge/license-MIT-blue.svg) ![React](https://img.shields.io/badge/React-20232A?style=for-the-badge&logo=react&logoColor=61DAFB) ![Node.js](https://img.shields.io/badge/Node.js-339933?style=for-the-badge&logo=nodedotjs&logoColor=white) ![Express.js](https://img.shields.io/badge/Express.js-000000?style=for-the-badge&logo=express&logoColor=white) ![MongoDB](https://img.shields.io/badge/MongoDB-47A248?style=for-the-badge&logo=mongodb&logoColor=white) ![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-38B2AC?style=for-the-badge&logo=tailwind-css&logoColor=white)
+![License](https://img.shields.io/badge/license-MIT-blue.svg) ![React](https://img.shields.io/badge/React-20232A?style=for-the-badge&logo=react&logoColor=61DAFB) ![Node.js](https://img.shields.io/badge/Node.js-339933?style=for-the-badge&logo=nodedotjs&logoColor=white) ![Express.js](https://img.shields.io/badge/Express.js-000000?style=for-the-badge&logo=express&logoColor=white) ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-316192?style=for-the-badge&logo=postgresql&logoColor=white) ![Prisma](https://img.shields.io/badge/Prisma-2D3748?style=for-the-badge&logo=prisma&logoColor=white) ![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-38B2AC?style=for-the-badge&logo=tailwind-css&logoColor=white)
 
 EduConnect Hub is a user-friendly communication platform designed for academic departments that helps students connect with faculty, get answers to questions, and collaborate on projects - all in one place.
 
@@ -23,7 +23,7 @@ The platform solves three key challenges:
 
 -   **Frontend**: React, Tailwind CSS
 -   **Backend**: Node.js, Express.js
--   **Database**: MongoDB
+-   **Database**: PostgreSQL (Prisma ORM)
 -   **Authentication**: JSON Web Tokens (JWT)
 
 ## Getting Started
@@ -33,7 +33,7 @@ These instructions will get you a copy of the project up and running on your loc
 ### Prerequisites
 
 -   [Node.js](https://nodejs.org/en/) (v14 or newer)
--   [MongoDB](https://www.mongodb.com/try/download/community) (either local or a cloud instance)
+-   PostgreSQL database (local or cloud)
 
 ### Installation
 
@@ -53,8 +53,13 @@ These instructions will get you a copy of the project up and running on your loc
         cp server/.env.example server/.env
         ```
     -   Update the `server/.env` file with your environment variables:
-        -   `MONGO_URI`: Your MongoDB connection string.
+        -   `DATABASE_URL`: Your PostgreSQL connection string.
         -   `JWT_SECRET`: A secret key for signing JWTs.
+    -   Run Prisma migrations and generate client:
+        ```sh
+        npx prisma migrate deploy
+        npx prisma generate
+        ```
 
 3.  **Set up the frontend:**
     -   Navigate to the client directory and install dependencies:
