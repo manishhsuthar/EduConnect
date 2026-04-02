@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -29,7 +29,28 @@ const Login = () => {
 
   const { login, loginWithGoogle, register } = useAuth();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { toast } = useToast();
+
+  useEffect(() => {
+    const error = searchParams.get('error');
+    if (!error) return;
+
+    if (error === 'google_auth_failed') {
+      toast({
+        title: 'Google Sign-In Failed',
+        description: 'Could not sign you in with Google. Please try again.',
+        variant: 'destructive',
+      });
+    } else if (error === 'faculty_pending_approval') {
+      toast({
+        title: 'Approval Required',
+        description: 'Your faculty account is pending admin approval.',
+      });
+    }
+
+    setSearchParams({}, { replace: true });
+  }, [searchParams, setSearchParams, toast]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
