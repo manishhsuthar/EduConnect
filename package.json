@@ -4,6 +4,7 @@
   "description": "EduConnect Hub is a user-friendly communication platform designed for academic departments that helps students connect with faculty, get answers to questions, and collaborate on projects - all in one place.",
   "main": "index.js",
   "dependencies": {
+    "@prisma/adapter-pg": "^7.6.0",
     "@prisma/client": "^7.6.0",
     "accepts": "^2.0.0",
     "base64id": "^2.0.0",
@@ -93,6 +94,7 @@
     "passport-strategy": "^1.0.0",
     "path-to-regexp": "^8.2.0",
     "pause": "^0.0.1",
+    "pg": "^8.20.0",
     "proxy-addr": "^2.0.7",
     "punycode": "^2.3.1",
     "qs": "^6.14.0",
